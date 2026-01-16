@@ -33,7 +33,7 @@ public class Demo1Application {
                 log.info("Create order request");
                 Thread.sleep(100);
 
-                log.info("Validate order");
+                log.info("Validate  Validate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate orderValidate order");
                 Thread.sleep(100);
 
                 // Sinh WARN / ERROR có kiểm soát

@@ -1,9 +1,15 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <title>Gemini Realtime Log Monitor</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <!-- Correct Thymeleaf static resource URL for CSS -->
+    <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}" href="/css/bootstrap.min.css">
+    
+    <!-- Correct Thymeleaf static resource URLs for JS -->
+    <script th:src="@{/js/sockjs.min.js}" src="/js/sockjs.min.js"></script>
+    <script th:src="@{/js/stomp.min.js}" src="/js/stomp.min.js"></script>
+    
     <style>
         body {
             background-color: #f8f9fa;
@@ -29,7 +35,7 @@
         }
 
         .log-entry {
-            border-bottom: 1px solid #2d2d2d;
+            border-bottom: 1px solid #5f5f5f;
             padding: 3px 0;
             white-space: pre-wrap;
             word-break: break-all;
@@ -44,8 +50,8 @@
         .warn {
             color: #cca700;
         }
-        .info { color: #4ec9b0; }
-        .debug { color: #9cdcfe; }
+        .info { color: #d9d9d9; }
+        .debug { color: #7bd4ff; }
 
         /* Tree View Styles */
         .tree-view {
@@ -162,7 +168,7 @@
 
 <div class="container-fluid">
     <div class="row">
-        <div class="col-md-3 sidebar">
+        <div class="col-md-2 sidebar">
             <h4 class="mb-4">📁 Log Files</h4>
             <div class="mb-3">
                 <input type="text" id="searchFile" class="form-control" placeholder="Search files...">
@@ -174,40 +180,65 @@
             <div th:each="file : ${files}" th:data-log-id-initial="${file}" style="display: none;"></div>
         </div>
 
-        <div class="col-md-9 p-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="col-md-10 pt-4">
+            <!-- Header Row 1: File Info and Status -->
+            <div class="d-flex justify-content-between align-items-center mb-2" style="padding-bottom: 12px; border-bottom: 1px solid #dee2e6;">
                 <div>
                     <h5 class="mb-0" id="current-log-title">Select a log file</h5>
-                    <small class="text-muted" id="current-log-path">Waiting for connection...</small>
                 </div>
-                <div class="d-flex align-items-center gap-3">
-                    <!-- Date Range Filter -->
-                    <div class="d-flex align-items-center gap-2">
-                        <label for="logDate" class="form-label mb-0" style="white-space: nowrap;">📅 Date:</label>
-                        <input type="date" id="logDate" class="form-control form-control-sm" style="width: 150px;">
-                    </div>
-
-                    <!-- Line Count Filter -->
-                    <div class="d-flex align-items-center gap-2">
-                        <label for="lineCount" class="form-label mb-0" style="white-space: nowrap;">📊 Lines:</label>
-                        <input type="number" id="lineCount" class="form-control form-control-sm"
-                               placeholder="100" value="100" min="1" max="10000" style="width: 80px;">
-                        <button class="btn btn-sm btn-primary" onclick="loadHistoricalLogs()">Load</button>
-                    </div>
-
-                    <div class="d-flex align-items-center">
-                        <label for="refreshRate" class="form-label mb-0 me-2" style="white-space: nowrap;">
-                            Refresh Rate: <span id="refreshRateValue" class="fw-bold">1000</span>ms
-                        </label>
-                        <input type="range" class="form-range" id="refreshRate"
-                               min="100" max="5000" step="100" value="1000" style="width: 150px;">
-                    </div>
-                    <div class="form-check form-check-inline">
+                <div class="d-flex align-items-center gap-2">
+                    <!-- Auto-scroll checkbox -->
+                    <div class="form-check" style="margin-left: auto;">
                         <input class="form-check-input" type="checkbox" id="autoScroll" checked>
-                        <label class="form-check-label" for="autoScroll">Auto-scroll</label>
+                        <label class="form-check-label" for="autoScroll" style="margin-bottom: 0;">Auto-scroll</label>
                     </div>
-                    <button class="btn btn-outline-danger btn-sm" onclick="clearLogs()">Clear Console</button>
+                    <!-- Clear button -->
+                    <button class="btn btn-outline-danger btn-sm" onclick="clearLogs()">Clear</button>
                 </div>
+            </div>
+
+            <!-- Header Row 2: Filter Controls -->
+            <div class="d-flex align-items-center gap-2 mb-3" style="flex-wrap: wrap; padding-bottom: 12px;">
+                <!-- Date Search Filter -->
+                <div class="d-flex align-items-center gap-2">
+                    <label for="searchDate" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">📅 Date:</label>
+                    <input type="date" id="searchDate" class="form-control form-control-sm" style="width: 140px;">
+                </div>
+
+                <!-- Time Range Filter -->
+                <div class="d-flex align-items-center gap-1">
+                    <label for="startTime" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">⏱ From:</label>
+                    <input type="time" id="startTime" class="form-control form-control-sm" step="1" style="width: 110px;" placeholder="HH:mm:ss">
+                </div>
+
+                <div class="d-flex align-items-center gap-1">
+                    <label for="endTime" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">To:</label>
+                    <input type="time" id="endTime" class="form-control form-control-sm" step="1" style="width: 110px;" placeholder="HH:mm:ss">
+                </div>
+
+                <!-- Line Count Filter -->
+                <div class="d-flex align-items-center gap-1">
+                    <label for="searchLimit" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">📊 Lines:</label>
+                    <input type="number" id="searchLimit" class="form-control form-control-sm"
+                           placeholder="1000" value="1000" min="1" max="10000" style="width: 80px;">
+                </div>
+
+                <!-- Search and Live buttons -->
+                <button class="btn btn-sm btn-primary" onclick="searchLogsByDate()">🔍 Search</button>
+                <button class="btn btn-sm btn-secondary" onclick="backToLiveMode()">📡 Live</button>
+
+                <!-- Refresh Rate Control -->
+                <div class="d-flex align-items-center gap-1" style="margin-left: auto;">
+                    <label for="refreshRate" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">
+                        ⚙️ <span id="refreshRateValue" class="fw-bold">1000</span>ms
+                    </label>
+                    <input type="range" class="form-range" id="refreshRate"
+                           min="100" max="5000" step="100" value="1000" style="width: 120px;">
+                </div>
+
+
+
+
             </div>
 
             <div id="log-container">
@@ -217,34 +248,53 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+
 
 <script>
     let stompClient = null;
     let currentSubscription = null;
 
+    // Performance optimization variables
+    const MAX_LOG_LINES = 2000; // Max lines to keep in memory
+    let logBuffer = []; // Buffer để batch add logs
+    let isProcessingBuffer = false;
+    let pendingScroll = false;
+    let cachedContent = null;
+    let cachedContainer = null;
+
+    function getContentElement() {
+        if (!cachedContent) {
+            cachedContent = document.getElementById('log-content');
+        }
+        return cachedContent;
+    }
+
+    function getContainerElement() {
+        if (!cachedContainer) {
+            cachedContainer = document.getElementById('log-container');
+        }
+        return cachedContainer;
+    }
+
     function connect() {
         const socket = new SockJS('/log-websocket');
         stompClient = Stomp.over(socket);
-        stompClient.debug = null; // Tắt log debug của stomp để console sạch hơn
+        stompClient.debug = null;
 
         stompClient.connect({}, function (frame) {
             console.log('Connected to WebSocket');
-            document.getElementById('current-log-path').innerText = "Connected. Monitoring directory...";
+            const pathEl = document.getElementById('current-log-path');
+            if (pathEl) pathEl.innerText = "Connected. Monitoring directory...";
 
-            // Lắng nghe thông báo khi có file log mới được tạo động ở Backend
             stompClient.subscribe('/topic/new-file', function (message) {
                 addNewFileToList(message.body);
             });
 
-            // Lắng nghe thông báo refresh rate đã được cập nhật
             stompClient.subscribe('/topic/refresh-rate-updated', function (message) {
                 console.log(message.body);
                 showNotification(message.body, 'success');
             });
 
-            // Lắng nghe lỗi refresh rate
             stompClient.subscribe('/topic/refresh-rate-error', function (message) {
                 console.error(message.body);
                 showNotification(message.body, 'error');
@@ -255,53 +305,91 @@
     function subscribeToLog(logId) {
         if (!stompClient) return;
 
-
-        // Hủy đăng ký cũ nếu có
         if (currentSubscription) {
             currentSubscription.unsubscribe();
         }
 
         document.getElementById('current-log-title').innerText = logId;
-        document.getElementById('log-content').innerHTML = ""; // Xóa nội dung cũ
+        getContentElement().innerHTML = "";
+        logBuffer = []; // Clear buffer
+        isProcessingBuffer = false;
 
-        // Đăng ký kênh log cụ thể
         currentSubscription = stompClient.subscribe('/topic/logs/' + logId, function (message) {
             processLogLine(message.body);
         });
     }
 
+    // Determine log level without toUpperCase (more efficient)
+    function getLogLevel(line) {
+        if (line.indexOf('ERROR') !== -1 || line.indexOf('EXCEPTION') !== -1) return 'error';
+        if (line.indexOf('WARN') !== -1) return 'warn';
+        if (line.indexOf('INFO') !== -1) return 'info';
+        if (line.indexOf('DEBUG') !== -1) return 'debug';
+        return '';
+    }
+
     function processLogLine(line) {
-        const content = document.getElementById('log-content');
-        const container = document.getElementById('log-container');
+        // Add to buffer instead of immediately appending
+        logBuffer.push(line);
 
-        const div = document.createElement('div');
-        div.className = 'log-entry';
+        // Process buffer every 50ms or when buffer reaches 100 lines
+        if (!isProcessingBuffer && (logBuffer.length >= 100 || logBuffer.length === 1)) {
+            isProcessingBuffer = true;
+            requestAnimationFrame(flushLogBuffer);
+        }
+    }
 
-        // Highlighting logic
-        let formattedLine = line;
-        const upperLine = line.toUpperCase();
-        if (upperLine.includes("ERROR") || upperLine.includes("EXCEPTION")) {
-            div.classList.add('error');
-        } else if (upperLine.includes("WARN")) {
-            div.classList.add('warn');
-        } else if (upperLine.includes("INFO")) {
-            div.classList.add('info');
-        } else if (upperLine.includes("DEBUG")) {
-            div.classList.add('debug');
+    function flushLogBuffer() {
+        if (logBuffer.length === 0) {
+            isProcessingBuffer = false;
+            return;
         }
 
-        div.textContent = line;
-        content.appendChild(div);
+        const content = getContentElement();
+        const container = getContainerElement();
+        const autoScrollCheckbox = document.getElementById('autoScroll');
+        const shouldScroll = autoScrollCheckbox && autoScrollCheckbox.checked;
 
-        // Auto scroll nếu người dùng bật
-        if (document.getElementById('autoScroll').checked) {
-            container.scrollTop = container.scrollHeight;
+        // Use DocumentFragment for batch DOM insertion
+        const fragment = document.createDocumentFragment();
+
+        for (let i = 0; i < logBuffer.length; i++) {
+            const line = logBuffer[i];
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+
+            const level = getLogLevel(line);
+            if (level) {
+                div.classList.add(level);
+            }
+
+            div.textContent = line;
+            fragment.appendChild(div);
         }
 
-        // Tối ưu: Nếu quá 2000 dòng thì xóa bớt dòng cũ để tránh lag trình duyệt
-        if (content.childElementCount > 2000) {
-            content.removeChild(content.firstChild);
+        // Append all at once
+        content.appendChild(fragment);
+        logBuffer = [];
+
+        // Handle scrolling efficiently
+        if (shouldScroll && !pendingScroll) {
+            pendingScroll = true;
+            requestAnimationFrame(() => {
+                container.scrollTop = container.scrollHeight;
+                pendingScroll = false;
+            });
         }
+
+        // Remove old lines if exceeding max
+        const children = content.children;
+        if (children.length > MAX_LOG_LINES) {
+            const toRemove = children.length - MAX_LOG_LINES;
+            for (let i = 0; i < toRemove; i++) {
+                content.removeChild(children[0]);
+            }
+        }
+
+        isProcessingBuffer = false;
     }
 
     function addNewFileToList(fileName) {
@@ -428,25 +516,30 @@
     }
 
     function loadAvailableDates(logId) {
-        // Lấy service name từ logId (VD: "order-service/app.log" -> "order-service/app.log")
-        fetch(`/api/available-dates?logFile=${encodeURIComponent(logId)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.dates.length > 0) {
-                    // Set date picker min/max
-                    const dateInput = document.getElementById('logDate');
-                    const dates = data.dates;
+        // Lấy service name từ logId (VD: "order-service/app.log" -> "order-service")
+        const serviceName = logId.substring(0, logId.lastIndexOf('/'));
 
-                    if (dates.length > 0) {
-                        dateInput.min = dates[0];
-                        dateInput.max = dates[dates.length - 1];
-                        // Auto-select first available date
-                        if (!dateInput.value) {
-                            dateInput.value = dates[0];
-                        }
+        fetch(`/api/logs/dates/${serviceName}`)
+            .then(response => response.json())
+            .then(dates => {
+                if (dates.length > 0) {
+                    // Set date picker suggestions
+                    const dateInput = document.getElementById('searchDate');
+
+                    // Set min/max based on available dates
+                    const sortedDates = dates.sort();
+                    dateInput.min = sortedDates[0];
+                    dateInput.max = sortedDates[sortedDates.length - 1];
+
+                    // Auto-select today or latest date
+                    const today = new Date().toISOString().split('T')[0];
+                    if (dates.includes(today)) {
+                        dateInput.value = today;
+                    } else if (dates.length > 0) {
+                        dateInput.value = sortedDates[sortedDates.length - 1];
                     }
 
-                    console.log('Available dates:', dates);
+                    console.log('Available dates for', serviceName, ':', dates);
                 }
             })
             .catch(error => console.error('Error loading available dates:', error));
@@ -466,80 +559,96 @@
         document.getElementById('log-content').innerHTML = "";
     }
 
-    function loadHistoricalLogs() {
+    let isLiveMode = true;
+
+    function searchLogsByDate() {
         const currentFile = document.getElementById('current-log-title').innerText;
-        const logDate = document.getElementById('logDate').value;
-        const lineCount = document.getElementById('lineCount').value || 100;
+        const searchDate = document.getElementById('searchDate').value;
+        const searchLimit = document.getElementById('searchLimit').value || 1000;
+        const startTime = document.getElementById('startTime').value; // HH:mm or HH:mm:ss
+        const endTime = document.getElementById('endTime').value;     // HH:mm or HH:mm:ss
 
         if (currentFile === "Select a log file") {
             showNotification('Please select a log file first', 'warning');
             return;
         }
-
-        if (!logDate) {
-            showNotification('Please select a date', 'warning');
+        if (!searchDate) {
+            showNotification('Please select a date to search', 'warning');
             return;
         }
 
-        // Lấy service name từ current file
-        // VD: currentFile = "order-service/app.log" -> "order-service"
         const serviceName = currentFile.substring(0, currentFile.lastIndexOf('/'));
 
-        // Tạo path đến archive file
-        // Format: service-name/archive/app-YYYY-MM-DD.1.log
-        const logFilePath = serviceName + '/archive/app-' + logDate + '.1.log';
+        isLiveMode = false;
+        if (currentSubscription) {
+            currentSubscription.unsubscribe();
+            currentSubscription = null;
+        }
 
-        console.log('Loading historical logs from:', logFilePath);
-        console.log('Line count:', lineCount);
+        const payload = {
+            date: searchDate,
+            serviceName: serviceName,
+            limit: parseInt(searchLimit)
+        };
+        if (startTime) payload.startTime = startTime;
+        if (endTime) payload.endTime = endTime;
 
-        // Fetch logs từ API
-        fetch(`/api/historical-logs?logFile=${encodeURIComponent(logFilePath)}&lineCount=${lineCount}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Clear hiện tại và load logs cũ
-                    clearLogs();
-                    const content = document.getElementById('log-content');
+        fetch('/api/logs/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            clearLogs();
+            const content = document.getElementById('log-content');
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'log-entry info';
+            infoDiv.style.fontWeight = 'bold';
+            const timeInfo = (startTime || endTime) ? ` | Time: ${startTime || '00:00'} - ${endTime || '23:59:59'}` : '';
+            infoDiv.textContent = `🔍 Search Results for ${searchDate}${timeInfo} | Found: ${data.totalCount} logs | Showing: ${Math.min(data.totalCount, searchLimit)} logs`;
+            content.appendChild(infoDiv);
 
-                    // Hiển thị thông tin
-                    const infoDiv = document.createElement('div');
-                    infoDiv.className = 'log-entry info';
-                    infoDiv.textContent = `=== Historical Logs from ${logDate} (${data.loadedLines}/${data.totalLines} lines) ===`;
-                    content.appendChild(infoDiv);
+            if (data.logs && data.logs.length > 0) {
+                data.logs.forEach(logEntry => {
+                    const div = document.createElement('div');
+                    div.className = 'log-entry';
+                    const level = logEntry.level ? logEntry.level.toUpperCase() : '';
+                    if (level === 'ERROR') div.classList.add('error');
+                    else if (level === 'WARN') div.classList.add('warn');
+                    else if (level === 'INFO') div.classList.add('info');
+                    else if (level === 'DEBUG') div.classList.add('debug');
+                    div.textContent = logEntry.rawLine;
+                    content.appendChild(div);
+                });
+                document.getElementById('log-container').scrollTop = 0;
+                showNotification(`Found ${data.totalCount} logs`, 'success');
+            } else {
+                const noDataDiv = document.createElement('div');
+                noDataDiv.className = 'log-entry warn';
+                noDataDiv.textContent = '⚠️ No logs found for this query';
+                content.appendChild(noDataDiv);
+                showNotification('No logs found for this query', 'warning');
+            }
+        })
+        .catch(error => {
+            console.error('Error searching logs:', error);
+            showNotification('Error searching logs: ' + error.message, 'error');
+        });
+    }
 
-                    // Thêm từng dòng log
-                    data.lines.forEach(line => {
-                        const div = document.createElement('div');
-                        div.className = 'log-entry';
+    function backToLiveMode() {
+        isLiveMode = true;
+        clearLogs();
 
-                        // Highlight logic
-                        const upperLine = line.toUpperCase();
-                        if (upperLine.includes("ERROR") || upperLine.includes("EXCEPTION")) {
-                            div.classList.add('error');
-                        } else if (upperLine.includes("WARN")) {
-                            div.classList.add('warn');
-                        } else if (upperLine.includes("INFO")) {
-                            div.classList.add('info');
-                        } else if (upperLine.includes("DEBUG")) {
-                            div.classList.add('debug');
-                        }
-
-                        div.textContent = line;
-                        content.appendChild(div);
-                    });
-
-                    // Scroll to top
-                    document.getElementById('log-container').scrollTop = 0;
-
-                    showNotification(`Loaded ${data.loadedLines} lines from ${logDate}`, 'success');
-                } else {
-                    showNotification('Error: ' + data.message, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error loading historical logs:', error);
-                showNotification('Error loading logs: ' + error.message, 'error');
-            });
+        const currentFile = document.getElementById('current-log-title').innerText;
+        if (currentFile !== "Select a log file") {
+            const logId = currentFile;
+            subscribeToLog(logId);
+            showNotification('Switched to Live Mode', 'success');
+        } else {
+            showNotification('Please select a log file', 'warning');
+        }
     }
 
     function showNotification(message, type = 'info') {
