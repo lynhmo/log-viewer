@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="30 seconds">
+
+    <!-- ================== BIẾN DÙNG CHUNG ================== -->
+
+    <!-- Tên service -->
+    <property name="APP_NAME" value="order-service"/>
+    <property name="APP_NAME2" value="checkout-service"/>
+
+    <!-- THƯ MỤC LOG TRÊN WINDOWS -->
+    <!-- Ví dụ: C:\log-test -->
+    <property name="LOG_BASE" value="D:/logs"/>
+
+    <!-- ================== LOG PATTERN ================== -->
+    <property name="LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS}  %-5level [%property{APP_NAME}] [traceId=%X{traceId}] %logger{36} : %msg%n"/>
+
+    <!-- ================== CONSOLE ================== -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ================== FILE APPENDER ================== -->
+    <appender name="FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+
+        <!-- File hiện tại -->
+        <file>${LOG_BASE}/${APP_NAME}/app.log</file>
+
+        <!-- Rolling theo NGÀY + SIZE -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+
+            <fileNamePattern>
+                ${LOG_BASE}/${APP_NAME}/archive/app-%d{yyyy-MM-dd}.%i.log
+            </fileNamePattern>
+
+            <timeBasedFileNamingAndTriggeringPolicy
+                    class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>50MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+    <appender name="FILE2"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+
+        <!-- File hiện tại -->
+        <file>${LOG_BASE}/${APP_NAME2}/app.log</file>
+
+        <!-- Rolling theo NGÀY + SIZE -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+
+            <fileNamePattern>
+                ${LOG_BASE}/${APP_NAME2}/archive/app-%d{yyyy-MM-dd}.%i.log
+            </fileNamePattern>
+
+            <timeBasedFileNamingAndTriggeringPolicy
+                    class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+                <maxFileSize>50MB</maxFileSize>
+            </timeBasedFileNamingAndTriggeringPolicy>
+
+            <maxHistory>14</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ================== ROOT LOGGER ================== -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="FILE2"/>
+    </root>
+
+    <!-- ================== GIẢM LOG RÁC ================== -->
+    <logger name="org.springframework" level="INFO"/>
+    <logger name="org.hibernate" level="WARN"/>
+
+</configuration>
