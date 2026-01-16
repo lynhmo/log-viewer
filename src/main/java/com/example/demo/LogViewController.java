@@ -55,6 +55,11 @@ public class LogViewController {
         return "log-monitor";
     }
 
+    @GetMapping("/test-search")
+    public String testSearch() {
+        return "test-log-search";
+    }
+
     /**
      * Chuẩn hóa path theo hệ điều hành
      */

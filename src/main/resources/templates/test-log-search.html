@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test Log Search API</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            padding: 20px;
+        }
+        .log-result {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .log-line {
+            border-bottom: 1px solid #333;
+            padding: 3px 0;
+        }
+        .log-line.error { color: #f44747; }
+        .log-line.warn { color: #cca700; }
+        .log-line.info { color: #4ec9b0; }
+        .log-line.debug { color: #9cdcfe; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Test Log Search API</h2>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Search Logs by Date</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Service Name:</label>
+                        <select class="form-control" id="serviceName">
+                            <option value="order-service">order-service</option>
+                            <option value="checkout-service">checkout-service</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Date (yyyy-MM-dd):</label>
+                        <input type="date" class="form-control" id="searchDate">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Max Lines:</label>
+                        <input type="number" class="form-control" id="limit" value="100">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="searchLogs()">🔍 Search Logs</button>
+                    <button class="btn btn-secondary" onclick="loadAvailableDates()">📅 Get Available Dates</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Available Dates</h5>
+            </div>
+            <div class="card-body">
+                <div id="dates-result" class="alert alert-secondary">
+                    Click "Get Available Dates" to load...
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h5>Search Results</h5>
+            </div>
+            <div class="card-body">
+                <div id="search-info" class="alert alert-info d-none"></div>
+                <div id="log-results" class="log-result">
+                    Search results will appear here...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set today as default date
+        document.getElementById('searchDate').valueAsDate = new Date();
+
+        function searchLogs() {
+            const serviceName = document.getElementById('serviceName').value;
+            const date = document.getElementById('searchDate').value;
+            const limit = document.getElementById('limit').value;
+
+            if (!date) {
+                alert('Please select a date');
+                return;
+            }
+
+            const searchInfo = document.getElementById('search-info');
+            searchInfo.className = 'alert alert-info';
+            searchInfo.textContent = '🔄 Searching logs...';
+            searchInfo.classList.remove('d-none');
+
+            fetch('/api/logs/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    date: date,
+                    serviceName: serviceName,
+                    limit: parseInt(limit)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayResults(data);
+            })
+            .catch(error => {
+                searchInfo.className = 'alert alert-danger';
+                searchInfo.textContent = '❌ Error: ' + error.message;
+                console.error('Error:', error);
+            });
+        }
+
+        function displayResults(data) {
+            const searchInfo = document.getElementById('search-info');
+            const logResults = document.getElementById('log-results');
+
+            searchInfo.className = 'alert alert-success';
+            searchInfo.textContent = `✅ Found ${data.totalCount} logs for ${data.searchDate}`;
+            searchInfo.classList.remove('d-none');
+
+            logResults.innerHTML = '';
+
+            if (data.logs && data.logs.length > 0) {
+                data.logs.forEach(log => {
+                    const div = document.createElement('div');
+                    div.className = 'log-line';
+
+                    // Add color class based on log level
+                    const level = log.level ? log.level.toLowerCase() : '';
+                    if (level) {
+                        div.classList.add(level);
+                    }
+
+                    div.textContent = log.rawLine;
+                    logResults.appendChild(div);
+                });
+            } else {
+                logResults.innerHTML = '<div class="text-warning">⚠️ No logs found for this date</div>';
+            }
+        }
+
+        function loadAvailableDates() {
+            const serviceName = document.getElementById('serviceName').value;
+            const datesResult = document.getElementById('dates-result');
+
+            datesResult.className = 'alert alert-secondary';
+            datesResult.textContent = '🔄 Loading available dates...';
+
+            fetch(`/api/logs/dates/${serviceName}`)
+            .then(response => response.json())
+            .then(dates => {
+                if (dates && dates.length > 0) {
+                    datesResult.className = 'alert alert-success';
+                    datesResult.innerHTML = '<strong>📅 Available Dates:</strong><br>' +
+                        dates.map(d => `<span class="badge bg-primary me-1">${d}</span>`).join(' ');
+                } else {
+                    datesResult.className = 'alert alert-warning';
+                    datesResult.textContent = '⚠️ No dates found';
+                }
+            })
+            .catch(error => {
+                datesResult.className = 'alert alert-danger';
+                datesResult.textContent = '❌ Error: ' + error.message;
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>
