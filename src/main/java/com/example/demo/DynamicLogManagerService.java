@@ -2,6 +2,7 @@ package com.example.demo;
 
 import org.apache.commons.io.input.Tailer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -25,14 +26,43 @@ public class DynamicLogManagerService {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    @Value("${app.log.base-path}")
+    private String logDirectory;
+
     private final Map<String, Tailer> activeTailers = new ConcurrentHashMap<>();
-    private final String LOG_DIRECTORY = "D:/logs/"; // Thư mục chứa log
     private volatile long refreshRateMs = 1000; // Tốc độ làm mới mặc định (1 giây)
+
+    // Tự động phát hiện OS
+    private static final String OS = System.getProperty("os.name").toLowerCase();
+    private static final boolean IS_WINDOWS = OS.contains("win");
+    private static final boolean IS_LINUX = OS.contains("nix") || OS.contains("nux") || OS.contains("aix");
+
+    /**
+     * Chuẩn hóa path theo hệ điều hành
+     */
+    private String normalizePath(String path) {
+        if (path == null) {
+            return IS_WINDOWS ? "C:/logs" : "/var/log/app";
+        }
+
+        // Thay thế separator cho đúng OS
+        if (IS_WINDOWS) {
+            return path.replace("/", File.separator);
+        } else {
+            return path.replace("\\", File.separator);
+        }
+    }
 
     @PostConstruct
     public void startDirectoryWatcher() {
+        // Chuẩn hóa path theo OS
+        String normalizedLogDirectory = normalizePath(logDirectory);
+
+        System.out.println("OS phát hiện: " + (IS_WINDOWS ? "Windows" : (IS_LINUX ? "Linux" : "Other")));
+        System.out.println("Thư mục log: " + normalizedLogDirectory);
+
         // 1. Quét các file hiện có lúc khởi động
-        Path dirPath = Paths.get(LOG_DIRECTORY);
+        Path dirPath = Paths.get(normalizedLogDirectory);
         try {
             if (Files.exists(dirPath) && Files.isDirectory(dirPath)) {
                 try (Stream<Path> paths = Files.walk(dirPath)) {
@@ -48,14 +78,14 @@ public class DynamicLogManagerService {
                                 }
                             });
                 } catch (Exception e) {
-                    System.err.println("Lỗi khi quét thư mục: " + LOG_DIRECTORY);
+                    System.err.println("Lỗi khi quét thư mục: " + normalizedLogDirectory);
                     e.printStackTrace();
                 }
             } else {
-                System.err.println("Thư mục không tồn tại hoặc không phải thư mục: " + LOG_DIRECTORY);
+                System.err.println("Thư mục không tồn tại hoặc không phải thư mục: " + normalizedLogDirectory);
             }
         } catch (Exception e) {
-            System.err.println("Lỗi khi kiểm tra thư mục: " + LOG_DIRECTORY);
+            System.err.println("Lỗi khi kiểm tra thư mục: " + normalizedLogDirectory);
             e.printStackTrace();
         }
 
@@ -68,7 +98,7 @@ public class DynamicLogManagerService {
                 watcher = FileSystems.getDefault().newWatchService();
 
                 // Đăng ký tất cả các thư mục hiện có (đệ quy)
-                registerAllDirectories(watcher, Paths.get(LOG_DIRECTORY), watchKeyPathMap);
+                registerAllDirectories(watcher, Paths.get(normalizedLogDirectory), watchKeyPathMap);
 
                 System.out.println("Đã đăng ký theo dõi " + watchKeyPathMap.size() + " thư mục");
 
@@ -171,8 +201,9 @@ public class DynamicLogManagerService {
 
     private void startTailing(File file) {
         try {
-            // Dùng đường dẫn tương đối từ LOG_DIRECTORY làm ID để tránh trùng lặp
-            String logId = Paths.get(LOG_DIRECTORY).relativize(file.toPath()).toString().replace("\\", "/");
+            // Chuẩn hóa path và dùng đường dẫn tương đối từ logDirectory làm ID để tránh trùng lặp
+            String normalizedLogDirectory = normalizePath(logDirectory);
+            String logId = Paths.get(normalizedLogDirectory).relativize(file.toPath()).toString().replace("\\", "/");
 
             if (activeTailers.containsKey(logId)) {
                 System.out.println("File đã được tail: " + logId);
@@ -228,6 +259,13 @@ public class DynamicLogManagerService {
     }
 
     /**
+     * Lấy đường dẫn thư mục log
+     */
+    public String getLogDirectory() {
+        return logDirectory;
+    }
+
+    /**
      * Cập nhật tốc độ làm mới cho tất cả các tailer
      * LƯU Ý: Tailer không hỗ trợ thay đổi delay động, nên cần restart
      */
@@ -250,6 +288,9 @@ public class DynamicLogManagerService {
     private void restartAllTailers() {
         System.out.println("Đang restart " + activeTailers.size() + " tailer(s)...");
 
+        // Chuẩn hóa path
+        String normalizedLogDirectory = normalizePath(logDirectory);
+
         // Lưu lại danh sách file đang tail
         Map<String, File> filesToRestart = new ConcurrentHashMap<>();
         activeTailers.forEach((logId, tailer) -> {
@@ -258,7 +299,7 @@ public class DynamicLogManagerService {
                 tailer.stop();
 
                 // Tìm lại file từ logId
-                Path filePath = Paths.get(LOG_DIRECTORY).resolve(logId);
+                Path filePath = Paths.get(normalizedLogDirectory).resolve(logId);
                 File file = filePath.toFile();
                 if (file.exists() && file.canRead()) {
                     filesToRestart.put(logId, file);
@@ -291,7 +332,8 @@ public class DynamicLogManagerService {
      */
     private void startTailingWithoutNotification(File file) {
         try {
-            String logId = Paths.get(LOG_DIRECTORY).relativize(file.toPath()).toString().replace("\\", "/");
+            String normalizedLogDirectory = normalizePath(logDirectory);
+            String logId = Paths.get(normalizedLogDirectory).relativize(file.toPath()).toString().replace("\\", "/");
 
             if (activeTailers.containsKey(logId)) {
                 return;

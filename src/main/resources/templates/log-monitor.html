@@ -47,11 +47,115 @@
         .info { color: #4ec9b0; }
         .debug { color: #9cdcfe; }
 
-        .list-group-item { cursor: pointer; transition: all 0.2s; }
-        .list-group-item:hover { background-color: #e9ecef; }
-        .list-group-item.active { background-color: #0d6efd !important; border-color: #0d6efd !important; }
+        /* Tree View Styles */
+        .tree-view {
+            overflow-y: auto;
+            overflow-x: hidden;
+            height: calc(100vh - 150px);
+            font-size: 13px;
+        }
 
-        .status-dot { height: 10px; width: 10px; background-color: #28a745; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .tree-node {
+            user-select: none;
+            position: relative;
+        }
+
+        .tree-folder {
+            cursor: pointer;
+            padding: 8px 5px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .tree-folder:hover {
+            background-color: #e9ecef;
+        }
+
+        .tree-folder.active {
+            background-color: #0d6efd;
+            color: white;
+        }
+
+        .tree-toggle {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            text-align: center;
+            line-height: 20px;
+            cursor: pointer;
+            margin-right: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .tree-toggle.collapsed::before {
+            content: "▶";
+        }
+
+        .tree-toggle.expanded::before {
+            content: "▼";
+        }
+
+        .tree-children {
+            margin-left: 20px;
+            max-height: 999px;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .tree-children.collapsed {
+            max-height: 0;
+        }
+
+        .tree-file {
+            cursor: pointer;
+            padding: 6px 5px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            color: #495057;
+            font-size: 12px;
+        }
+
+        .tree-file:hover {
+            background-color: #e9ecef;
+        }
+
+        .tree-file.active {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 500;
+        }
+
+        .tree-file-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            text-align: center;
+            line-height: 16px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            height: 8px;
+            width: 8px;
+            background-color: #28a745;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+            flex-shrink: 0;
+        }
+
+        .status-dot.active {
+            background-color: #0dcaf0;
+            box-shadow: 0 0 4px #0dcaf0;
+        }
     </style>
 </head>
 <body>
@@ -59,19 +163,15 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-3 sidebar">
-            <h4 class="mb-4">Log Explorer</h4>
+            <h4 class="mb-4">📁 Log Files</h4>
             <div class="mb-3">
-                <input type="text" id="searchFile" class="form-control" placeholder="Search log files...">
+                <input type="text" id="searchFile" class="form-control" placeholder="Search files...">
             </div>
-            <div class="list-group" id="file-list">
-                <button th:each="file : ${files}"
-                        th:id="'btn-' + ${file}"
-                        th:data-log-id="${file}"
-                        class="list-group-item list-group-item-action d-flex align-items-center log-file-btn">
-                    <span class="status-dot"></span>
-                    <span th:text="${file}"></span>
-                </button>
+            <div class="tree-view" id="file-list">
+                <!-- Tree view will be built here by JavaScript -->
             </div>
+            <!-- Hidden elements để truyền data từ Thymeleaf -->
+            <div th:each="file : ${files}" th:data-log-id-initial="${file}" style="display: none;"></div>
         </div>
 
         <div class="col-md-9 p-4">
@@ -81,6 +181,20 @@
                     <small class="text-muted" id="current-log-path">Waiting for connection...</small>
                 </div>
                 <div class="d-flex align-items-center gap-3">
+                    <!-- Date Range Filter -->
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="logDate" class="form-label mb-0" style="white-space: nowrap;">📅 Date:</label>
+                        <input type="date" id="logDate" class="form-control form-control-sm" style="width: 150px;">
+                    </div>
+
+                    <!-- Line Count Filter -->
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="lineCount" class="form-label mb-0" style="white-space: nowrap;">📊 Lines:</label>
+                        <input type="number" id="lineCount" class="form-control form-control-sm"
+                               placeholder="100" value="100" min="1" max="10000" style="width: 80px;">
+                        <button class="btn btn-sm btn-primary" onclick="loadHistoricalLogs()">Load</button>
+                    </div>
+
                     <div class="d-flex align-items-center">
                         <label for="refreshRate" class="form-label mb-0 me-2" style="white-space: nowrap;">
                             Refresh Rate: <span id="refreshRateValue" class="fw-bold">1000</span>ms
@@ -141,9 +255,6 @@
     function subscribeToLog(logId) {
         if (!stompClient) return;
 
-        // Cập nhật UI: Active class
-        document.querySelectorAll('.list-group-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('btn-' + logId).classList.add('active');
 
         // Hủy đăng ký cũ nếu có
         if (currentSubscription) {
@@ -194,25 +305,241 @@
     }
 
     function addNewFileToList(fileName) {
-        const list = document.getElementById('file-list');
-        if (document.getElementById('btn-' + fileName)) return;
+        // Rebuild the entire tree with the new file
+        const files = Array.from(document.querySelectorAll('[data-log-id]')).map(el => el.getAttribute('data-log-id'));
+        if (!files.includes(fileName)) {
+            files.push(fileName);
+            buildFileTree(files);
+        }
+    }
 
-        const btn = document.createElement('button');
-        btn.id = 'btn-' + fileName;
-        btn.className = 'list-group-item list-group-item-action d-flex align-items-center log-file-btn';
-        btn.setAttribute('data-log-id', fileName);
-        btn.innerHTML = `<span class="status-dot"></span><span>${fileName}</span>`;
+    function buildFileTree(files) {
+        const container = document.getElementById('file-list');
+        const tree = buildTreeStructure(files);
+        container.innerHTML = '';
 
-        // Thêm event listener
-        btn.addEventListener('click', function() {
-            subscribeToLog(fileName);
+        tree.forEach(node => {
+            container.appendChild(createTreeNode(node));
         });
 
-        list.appendChild(btn);
+        attachTreeListeners();
+    }
+
+    function buildTreeStructure(files) {
+        const tree = {};
+
+        files.forEach(file => {
+            const parts = file.split('/');
+            let current = tree;
+
+            parts.forEach((part, index) => {
+                if (!current[part]) {
+                    current[part] = {
+                        name: part,
+                        path: parts.slice(0, index + 1).join('/'),
+                        isFile: index === parts.length - 1,
+                        children: {}
+                    };
+                }
+                current = current[part].children;
+            });
+        });
+
+        return Object.values(tree).map(node => expandTreeNode(node));
+    }
+
+    function expandTreeNode(node) {
+        return {
+            ...node,
+            children: Object.values(node.children).map(child => expandTreeNode(child))
+        };
+    }
+
+    function createTreeNode(node, level = 0) {
+        const div = document.createElement('div');
+        div.className = 'tree-node';
+        div.style.marginLeft = (level * 20) + 'px';
+
+        if (node.isFile) {
+            // File node
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'tree-file';
+            fileDiv.setAttribute('data-log-id', node.path);
+            fileDiv.innerHTML = `
+                <span class="status-dot"></span>
+                <span class="tree-file-icon">📄</span>
+                <span>${node.name}</span>
+            `;
+            fileDiv.addEventListener('click', function(e) {
+                e.stopPropagation();
+                selectFile(node.path, fileDiv);
+            });
+            div.appendChild(fileDiv);
+        } else {
+            // Folder node
+            const folderDiv = document.createElement('div');
+            folderDiv.className = 'tree-folder';
+            const hasChildren = node.children && node.children.length > 0;
+
+            const toggle = document.createElement('span');
+            toggle.className = 'tree-toggle expanded';
+            toggle.style.visibility = hasChildren ? 'visible' : 'hidden';
+
+            folderDiv.appendChild(toggle);
+            folderDiv.innerHTML += `<span style="font-weight: 500;">📁 ${node.name}</span>`;
+
+            const childrenDiv = document.createElement('div');
+            childrenDiv.className = 'tree-children';
+
+            if (hasChildren) {
+                node.children.forEach(child => {
+                    childrenDiv.appendChild(createTreeNode(child, 1));
+                });
+
+                toggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    toggle.classList.toggle('collapsed');
+                    toggle.classList.toggle('expanded');
+                    childrenDiv.classList.toggle('collapsed');
+                });
+            }
+
+            div.appendChild(folderDiv);
+            div.appendChild(childrenDiv);
+        }
+
+        return div;
+    }
+
+    function selectFile(logId, element) {
+        // Remove active class from all files
+        document.querySelectorAll('.tree-file').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.status-dot').forEach(el => el.classList.remove('active'));
+
+        // Add active class to selected file
+        element.classList.add('active');
+        element.querySelector('.status-dot').classList.add('active');
+
+        // Subscribe to the log
+        subscribeToLog(logId);
+
+        // Load available dates for date picker
+        loadAvailableDates(logId);
+    }
+
+    function loadAvailableDates(logId) {
+        // Lấy service name từ logId (VD: "order-service/app.log" -> "order-service/app.log")
+        fetch(`/api/available-dates?logFile=${encodeURIComponent(logId)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.dates.length > 0) {
+                    // Set date picker min/max
+                    const dateInput = document.getElementById('logDate');
+                    const dates = data.dates;
+
+                    if (dates.length > 0) {
+                        dateInput.min = dates[0];
+                        dateInput.max = dates[dates.length - 1];
+                        // Auto-select first available date
+                        if (!dateInput.value) {
+                            dateInput.value = dates[0];
+                        }
+                    }
+
+                    console.log('Available dates:', dates);
+                }
+            })
+            .catch(error => console.error('Error loading available dates:', error));
+    }
+
+    function attachTreeListeners() {
+        document.querySelectorAll('.tree-file').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const logId = this.getAttribute('data-log-id');
+                selectFile(logId, this);
+            });
+        });
     }
 
     function clearLogs() {
         document.getElementById('log-content').innerHTML = "";
+    }
+
+    function loadHistoricalLogs() {
+        const currentFile = document.getElementById('current-log-title').innerText;
+        const logDate = document.getElementById('logDate').value;
+        const lineCount = document.getElementById('lineCount').value || 100;
+
+        if (currentFile === "Select a log file") {
+            showNotification('Please select a log file first', 'warning');
+            return;
+        }
+
+        if (!logDate) {
+            showNotification('Please select a date', 'warning');
+            return;
+        }
+
+        // Lấy service name từ current file
+        // VD: currentFile = "order-service/app.log" -> "order-service"
+        const serviceName = currentFile.substring(0, currentFile.lastIndexOf('/'));
+
+        // Tạo path đến archive file
+        // Format: service-name/archive/app-YYYY-MM-DD.1.log
+        const logFilePath = serviceName + '/archive/app-' + logDate + '.1.log';
+
+        console.log('Loading historical logs from:', logFilePath);
+        console.log('Line count:', lineCount);
+
+        // Fetch logs từ API
+        fetch(`/api/historical-logs?logFile=${encodeURIComponent(logFilePath)}&lineCount=${lineCount}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Clear hiện tại và load logs cũ
+                    clearLogs();
+                    const content = document.getElementById('log-content');
+
+                    // Hiển thị thông tin
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'log-entry info';
+                    infoDiv.textContent = `=== Historical Logs from ${logDate} (${data.loadedLines}/${data.totalLines} lines) ===`;
+                    content.appendChild(infoDiv);
+
+                    // Thêm từng dòng log
+                    data.lines.forEach(line => {
+                        const div = document.createElement('div');
+                        div.className = 'log-entry';
+
+                        // Highlight logic
+                        const upperLine = line.toUpperCase();
+                        if (upperLine.includes("ERROR") || upperLine.includes("EXCEPTION")) {
+                            div.classList.add('error');
+                        } else if (upperLine.includes("WARN")) {
+                            div.classList.add('warn');
+                        } else if (upperLine.includes("INFO")) {
+                            div.classList.add('info');
+                        } else if (upperLine.includes("DEBUG")) {
+                            div.classList.add('debug');
+                        }
+
+                        div.textContent = line;
+                        content.appendChild(div);
+                    });
+
+                    // Scroll to top
+                    document.getElementById('log-container').scrollTop = 0;
+
+                    showNotification(`Loaded ${data.loadedLines} lines from ${logDate}`, 'success');
+                } else {
+                    showNotification('Error: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error loading historical logs:', error);
+                showNotification('Error loading logs: ' + error.message, 'error');
+            });
     }
 
     function showNotification(message, type = 'info') {
@@ -238,15 +565,39 @@
     // Bộ lọc tìm kiếm file log
     document.getElementById('searchFile').addEventListener('input', function (e) {
         const term = e.target.value.toLowerCase();
-        document.querySelectorAll('.list-group-item').forEach(item => {
+        document.querySelectorAll('.tree-file').forEach(item => {
             const text = item.textContent.toLowerCase();
             item.style.display = text.includes(term) ? 'flex' : 'none';
         });
+
+        // Tự động mở các folder cha nếu file con match với tìm kiếm
+        if (term.length > 0) {
+            document.querySelectorAll('.tree-folder').forEach(folder => {
+                const visibleChildren = Array.from(folder.parentElement.querySelector('.tree-children')?.querySelectorAll('.tree-file') || [])
+                    .some(child => child.style.display !== 'none');
+                folder.parentElement.querySelector('.tree-children').classList.toggle('collapsed', !visibleChildren);
+                folder.querySelector('.tree-toggle').classList.toggle('expanded', visibleChildren);
+                folder.querySelector('.tree-toggle').classList.toggle('collapsed', !visibleChildren);
+            });
+        } else {
+            // Reset to default state
+            document.querySelectorAll('.tree-children').forEach(children => {
+                children.classList.remove('collapsed');
+            });
+            document.querySelectorAll('.tree-toggle').forEach(toggle => {
+                toggle.classList.add('expanded');
+                toggle.classList.remove('collapsed');
+            });
+        }
     });
 
     // Thêm event listener cho các button log file
     document.addEventListener('DOMContentLoaded', function() {
-        attachLogFileListeners();
+        // Build tree view from Thymeleaf template data
+        const files = Array.from(document.querySelectorAll('[data-log-id-initial]')).map(el => el.getAttribute('data-log-id-initial'));
+        if (files.length > 0) {
+            buildFileTree(files);
+        }
 
         // Xử lý thay đổi refresh rate
         const refreshRateSlider = document.getElementById('refreshRate');
@@ -276,14 +627,6 @@
         console.log('Đã cập nhật refresh rate: ' + rateMs + 'ms');
     }
 
-    function attachLogFileListeners() {
-        document.querySelectorAll('.log-file-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const logId = this.getAttribute('data-log-id');
-                subscribeToLog(logId);
-            });
-        });
-    }
 
     // Khởi tạo
     connect();

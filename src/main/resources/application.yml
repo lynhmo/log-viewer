@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: demo1
+server:
+  port: 8080
+
+logging:
+  file:
+    # Đường dẫn log files (tương đối với project folder)
+    # Windows: ./logs (sẽ tạo trong E:\CODE\log-viewer\logs)
+    # Linux: ./logs (sẽ tạo trong /path/to/project/logs)
+    path: ./logs
+  config: classpath:logback-spring.xml
+
+app:
+  log:
+    # Đường dẫn thư mục chứa log files (tương đối với project folder)
+    # ./logs sẽ tạo logs cùng cấp với pom.xml
+    base-path: ./logs
+    service-name: order-service
+    service-name2: checkout-service

@@ -3,26 +3,23 @@ package com.example.demo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Configuration;
 
-import java.util.Random;
 import java.util.UUID;
 
 @SpringBootApplication
 public class Demo1Application {
 
-    private static final Logger log = LoggerFactory.getLogger(Demo1Application.class);
-
     public static void main(String[] args) {
         SpringApplication.run(Demo1Application.class, args);
-
         generateLogsContinuously();
     }
 
     private static void generateLogsContinuously() {
         Logger log = LoggerFactory.getLogger(Demo1Application.class);
-        Random random = new Random();
         int counter = 0;
 
         while (true) {
