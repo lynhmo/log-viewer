@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Refresh Rate Feature</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        h2 { color: #0066cc; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+        .test-step {
+            background: #f9f9f9;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #0066cc;
+        }
+        .command {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        .expected {
+            background: #e7f4e4;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #28a745;
+        }
+        .note {
+            background: #fff3cd;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #ffc107;
+        }
+        .feature-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        .feature-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Test Refresh Rate Feature</h1>
+
+    <div class="test-section">
+        <h2>📋 Các tính năng đã triển khai</h2>
+        <ul class="feature-list">
+            <li>Slider để điều chỉnh refresh rate (100ms - 5000ms)</li>
+            <li>Hiển thị giá trị refresh rate đang chọn</li>
+            <li>Gửi yêu cầu cập nhật qua WebSocket</li>
+            <li>Backend nhận và xử lý yêu cầu</li>
+            <li>Restart tất cả tailer với refresh rate mới</li>
+            <li>Thông báo toast khi cập nhật thành công/thất bại</li>
+            <li>Log chi tiết trên backend console</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🚀 Hướng dẫn test</h2>
+
+        <div class="test-step">
+            <h3>Bước 1: Khởi động ứng dụng</h3>
+            <div class="command">
+.\mvnw.cmd spring-boot:run
+            </div>
+            <div class="expected">
+                <strong>Kết quả mong đợi:</strong><br>
+                - Ứng dụng khởi động thành công<br>
+                - Console hiển thị: "Đã đăng ký theo dõi X thư mục"<br>
+                - Console hiển thị: "Bắt đầu tail file: ..."
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3>Bước 2: Truy cập giao diện</h3>
+            <div class="command">
+http://localhost:8080/logs
+            </div>
+            <div class="expected">
+                <strong>Kết quả mong đợi:</strong><br>
+                - Giao diện log monitor hiển thị<br>
+                - Danh sách file log ở sidebar bên trái<br>
+                - Thanh Refresh Rate hiển thị ở góc trên bên phải<br>
+                - Giá trị mặc định: 1000ms
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3>Bước 3: Test điều chỉnh refresh rate</h3>
+            <ol>
+                <li>Tìm thanh slider "Refresh Rate: 1000ms" ở góc trên bên phải</li>
+                <li>Kéo slider sang trái về 500ms</li>
+                <li>Thả chuột</li>
+            </ol>
+            <div class="expected">
+                <strong>Kết quả mong đợi:</strong><br>
+                - Giá trị hiển thị thay đổi: "Refresh Rate: 500ms"<br>
+                - Toast notification xuất hiện: "Refresh rate đã được cập nhật: 500ms"<br>
+                - Backend console hiển thị:<br>
+                <div class="command" style="margin-top: 5px;">
+Nhận yêu cầu cập nhật refresh rate: 500ms
+Đã cập nhật refresh rate: 500ms
+Đang restart X tailer(s)...
+Restart tail file: app.log với refresh rate 500ms
+Đã restart xong X tailer(s)
+                </div>
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3>Bước 4: Test với giá trị khác</h3>
+            <p>Thử các giá trị:</p>
+            <ul>
+                <li>100ms (rất nhanh)</li>
+                <li>2000ms (chậm)</li>
+                <li>5000ms (rất chậm)</li>
+            </ul>
+            <div class="expected">
+                <strong>Kết quả mong đợi:</strong><br>
+                - Mỗi lần thay đổi đều có toast notification<br>
+                - Log trên backend hiển thị quá trình restart<br>
+                - Tốc độ hiển thị log thay đổi theo refresh rate
+            </div>
+        </div>
+
+        <div class="test-step">
+            <h3>Bước 5: Kiểm tra multiple log files</h3>
+            <ol>
+                <li>Chọn một file log từ sidebar</li>
+                <li>Quan sát log streaming</li>
+                <li>Thay đổi refresh rate</li>
+                <li>Kiểm tra xem log vẫn streaming bình thường</li>
+            </ol>
+            <div class="expected">
+                <strong>Kết quả mong đợi:</strong><br>
+                - Log vẫn streaming sau khi restart<br>
+                - Không bị mất connection<br>
+                - Tốc độ cập nhật log thay đổi theo refresh rate mới
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Checklist kiểm tra</h2>
+        <ul class="feature-list">
+            <li>Slider hiển thị đúng và có thể kéo được</li>
+            <li>Giá trị hiển thị cập nhật real-time khi kéo slider</li>
+            <li>WebSocket gửi message khi thả chuột</li>
+            <li>Backend nhận và log message</li>
+            <li>Tailer restart thành công</li>
+            <li>Toast notification hiển thị</li>
+            <li>Log vẫn streaming sau restart</li>
+            <li>Refresh rate mới áp dụng cho tất cả file log</li>
+            <li>File log mới được tạo sử dụng refresh rate hiện tại</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>⚠️ Edge cases cần test</h2>
+
+        <div class="note">
+            <strong>Test 1: Thay đổi nhanh liên tiếp</strong><br>
+            - Kéo slider nhiều lần liên tiếp<br>
+            - Kiểm tra backend có bị quá tải không
+        </div>
+
+        <div class="note">
+            <strong>Test 2: WebSocket disconnect</strong><br>
+            - Restart backend trong khi frontend đang mở<br>
+            - Thử thay đổi refresh rate khi chưa reconnect<br>
+            - Kiểm tra xem có warning message không
+        </div>
+
+        <div class="note">
+            <strong>Test 3: Multiple clients</strong><br>
+            - Mở 2 tab browser<br>
+            - Thay đổi refresh rate ở tab 1<br>
+            - Kiểm tra tab 2 có nhận được notification không
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Performance Test</h2>
+
+        <div class="test-step">
+            <h3>Test với refresh rate thấp (100ms)</h3>
+            <ul>
+                <li>Set refresh rate = 100ms</li>
+                <li>Quan sát CPU usage</li>
+                <li>Kiểm tra log có bị drop không</li>
+            </ul>
+        </div>
+
+        <div class="test-step">
+            <h3>Test với nhiều file log (10+ files)</h3>
+            <ul>
+                <li>Tạo 10 file log ở các thư mục khác nhau</li>
+                <li>Thay đổi refresh rate</li>
+                <li>Kiểm tra thời gian restart</li>
+                <li>Kiểm tra tất cả file đều tail lại thành công</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>✅ Kết luận</h2>
+        <p>Sau khi test xong tất cả các bước trên, bạn có thể xác nhận:</p>
+        <ul class="feature-list">
+            <li>Tính năng refresh rate hoạt động đúng</li>
+            <li>UI/UX thân thiện, dễ sử dụng</li>
+            <li>Backend xử lý đúng và ổn định</li>
+            <li>Thông báo hiển thị rõ ràng</li>
+            <li>Không có memory leak hay performance issue</li>
+        </ul>
+    </div>
+
+    <div class="test-section" style="background: #e8f4f8;">
+        <h2>🎉 Demo Script</h2>
+        <p><strong>Để demo cho người khác xem:</strong></p>
+        <ol>
+            <li>Mở giao diện http://localhost:8080/logs</li>
+            <li>Giải thích: "Đây là log monitor với khả năng điều chỉnh refresh rate"</li>
+            <li>Chọn một file log từ sidebar</li>
+            <li>Chỉ vào slider: "Đây là refresh rate, hiện tại 1000ms = 1 giây"</li>
+            <li>Kéo về 500ms: "Giờ log sẽ cập nhật nhanh hơn, mỗi 0.5 giây"</li>
+            <li>Quan sát log streaming nhanh hơn</li>
+            <li>Kéo lên 3000ms: "Giờ sẽ chậm hơn, mỗi 3 giây"</li>
+            <li>Chỉ vào toast notification: "Hệ thống tự động thông báo khi cập nhật"</li>
+            <li>Mở backend console: "Backend log ra quá trình restart tailer"</li>
+        </ol>
+    </div>
+</body>
+</html>
