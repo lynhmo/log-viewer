@@ -24,7 +24,7 @@ public class LogViewController {
     private static final boolean IS_WINDOWS = OS.contains("win");
     private static final boolean IS_LINUX = OS.contains("nix") || OS.contains("nux") || OS.contains("aix");
 
-    @GetMapping("/logs")
+    @GetMapping()
     public String viewLogs(Model model) {
         List<String> logFiles = new ArrayList<>();
 

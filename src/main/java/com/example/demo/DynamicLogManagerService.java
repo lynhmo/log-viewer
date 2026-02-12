@@ -58,8 +58,8 @@ public class DynamicLogManagerService {
         // Chuẩn hóa path theo OS
         String normalizedLogDirectory = normalizePath(logDirectory);
 
-        System.out.println("OS phát hiện: " + (IS_WINDOWS ? "Windows" : (IS_LINUX ? "Linux" : "Other")));
-        System.out.println("Thư mục log: " + normalizedLogDirectory);
+        // System.out.println("OS phát hiện: " + (IS_WINDOWS ? "Windows" : (IS_LINUX ? "Linux" : "Other")));
+        // System.out.println("Thư mục log: " + normalizedLogDirectory);
 
         // 1. Quét các file hiện có lúc khởi động
         Path dirPath = Paths.get(normalizedLogDirectory);
@@ -100,7 +100,7 @@ public class DynamicLogManagerService {
                 // Đăng ký tất cả các thư mục hiện có (đệ quy)
                 registerAllDirectories(watcher, Paths.get(normalizedLogDirectory), watchKeyPathMap);
 
-                System.out.println("Đã đăng ký theo dõi " + watchKeyPathMap.size() + " thư mục");
+                // System.out.println("Đã đăng ký theo dõi " + watchKeyPathMap.size() + " thư mục");
 
                 while (true) {
                     WatchKey key;
@@ -127,13 +127,13 @@ public class DynamicLogManagerService {
 
                             // Nếu là thư mục mới được tạo, đăng ký theo dõi nó
                             if (kind == StandardWatchEventKinds.ENTRY_CREATE && file.isDirectory()) {
-                                System.out.println("Phát hiện thư mục mới: " + fullPath);
+                                // System.out.println("Phát hiện thư mục mới: " + fullPath);
                                 registerAllDirectories(watcher, fullPath, watchKeyPathMap);
                             }
 
                             // Nếu là file .log, bắt đầu tail
                             if (file.isFile() && fileName.toString().endsWith(".log")) {
-                                System.out.println("Phát hiện file log mới: " + fullPath);
+                                // System.out.println("Phát hiện file log mới: " + fullPath);
                                 // Đợi một chút để file được tạo hoàn toàn
                                 Thread.sleep(100);
                                 if (file.exists() && file.canRead()) {
@@ -186,7 +186,7 @@ public class DynamicLogManagerService {
                                 StandardWatchEventKinds.ENTRY_CREATE,
                                 StandardWatchEventKinds.ENTRY_MODIFY);
                             watchKeyPathMap.put(key, dir);
-                            System.out.println("Đăng ký theo dõi: " + dir);
+                            // System.out.println("Đăng ký theo dõi: " + dir);
                         } catch (Exception e) {
                             System.err.println("Không thể đăng ký thư mục: " + dir);
                             e.printStackTrace();
@@ -206,7 +206,7 @@ public class DynamicLogManagerService {
             String logId = Paths.get(normalizedLogDirectory).relativize(file.toPath()).toString().replace("\\", "/");
 
             if (activeTailers.containsKey(logId)) {
-                System.out.println("File đã được tail: " + logId);
+                // System.out.println("File đã được tail: " + logId);
                 return;
             }
 
@@ -215,7 +215,7 @@ public class DynamicLogManagerService {
                 return;
             }
 
-            System.out.println("Bắt đầu tail file: " + logId + " (" + file.getAbsolutePath() + ")");
+            // System.out.println("Bắt đầu tail file: " + logId + " (" + file.getAbsolutePath() + ")");
 
             LogTailerListener listener = new LogTailerListener(messagingTemplate, logId);
             Tailer tailer = new Tailer(file, listener, refreshRateMs, true);
@@ -276,7 +276,7 @@ public class DynamicLogManagerService {
         }
 
         this.refreshRateMs = newRateMs;
-        System.out.println("Đã cập nhật refresh rate: " + newRateMs + "ms");
+        // System.out.println("Đã cập nhật refresh rate: " + newRateMs + "ms");
 
         // Restart tất cả các tailer với delay mới
         restartAllTailers();
@@ -286,7 +286,7 @@ public class DynamicLogManagerService {
      * Restart tất cả các tailer với refresh rate mới
      */
     private void restartAllTailers() {
-        System.out.println("Đang restart " + activeTailers.size() + " tailer(s)...");
+        // System.out.println("Đang restart " + activeTailers.size() + " tailer(s)...");
 
         // Chuẩn hóa path
         String normalizedLogDirectory = normalizePath(logDirectory);
@@ -324,7 +324,7 @@ public class DynamicLogManagerService {
             }
         });
 
-        System.out.println("Đã restart xong " + activeTailers.size() + " tailer(s)");
+        // System.out.println("Đã restart xong " + activeTailers.size() + " tailer(s)");
     }
 
     /**
@@ -344,7 +344,7 @@ public class DynamicLogManagerService {
                 return;
             }
 
-            System.out.println("Restart tail file: " + logId + " với refresh rate " + refreshRateMs + "ms");
+            // System.out.println("Restart tail file: " + logId + " với refresh rate " + refreshRateMs + "ms");
 
             LogTailerListener listener = new LogTailerListener(messagingTemplate, logId);
             Tailer tailer = new Tailer(file, listener, refreshRateMs, true);
@@ -363,6 +363,50 @@ public class DynamicLogManagerService {
         } catch (Exception e) {
             System.err.println("Lỗi khi restart tailer cho file: " + file.getAbsolutePath());
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Tail một file bất kỳ (bao gồm file archive) - được gọi khi người dùng chọn một file log
+     */
+    public boolean tailFileOnDemand(String logId) {
+        try {
+            String normalizedLogDirectory = normalizePath(logDirectory);
+            Path filePath = Paths.get(normalizedLogDirectory).resolve(logId);
+            File file = filePath.toFile();
+
+            if (!file.exists() || !file.canRead()) {
+                System.err.println("File không tồn tại hoặc không thể đọc: " + filePath);
+                return false;
+            }
+
+            // Nếu đã tail file này rồi thì không cần tail lại
+            if (activeTailers.containsKey(logId)) {
+                // System.out.println("File đã được tail: " + logId);
+                return true;
+            }
+
+            // System.out.println("Bắt đầu tail file trên yêu cầu: " + logId);
+
+            LogTailerListener listener = new LogTailerListener(messagingTemplate, logId);
+            Tailer tailer = new Tailer(file, listener, refreshRateMs, true);
+
+            Thread thread = new Thread(tailer);
+            thread.setDaemon(true);
+            thread.setName("Tailer-" + logId);
+            thread.setUncaughtExceptionHandler((t, e) -> {
+                System.err.println("Lỗi trong thread tailer: " + t.getName());
+                e.printStackTrace();
+                activeTailers.remove(logId);
+            });
+            thread.start();
+
+            activeTailers.put(logId, tailer);
+            return true;
+        } catch (Exception e) {
+            System.err.println("Lỗi khi tail file on-demand: " + logId);
+            e.printStackTrace();
+            return false;
         }
     }
 }

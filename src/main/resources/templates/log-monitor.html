@@ -2,7 +2,7 @@
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Gemini Realtime Log Monitor</title>
+    <title>Trình xem Log</title>
     <!-- Correct Thymeleaf static resource URL for CSS -->
     <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}" href="/css/bootstrap.min.css">
     
@@ -20,6 +20,43 @@
             background: white;
             border-right: 1px solid #dee2e6;
             padding: 20px;
+        }
+
+        .ws-status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-size: 12px;
+            z-index: 1000;
+        }
+
+        .ws-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .ws-status-dot.connected {
+            background-color: #28a745;
+            animation: none;
+        }
+
+        .ws-status-dot.disconnected {
+            background-color: #dc3545;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
 
         #log-container {
@@ -169,9 +206,9 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-md-2 sidebar">
-            <h4 class="mb-4">📁 Log Files</h4>
+            <h4 class="mb-4">📁 Tệp Log</h4>
             <div class="mb-3">
-                <input type="text" id="searchFile" class="form-control" placeholder="Search files...">
+                <input type="text" id="searchFile" class="form-control" placeholder="Tìm kiếm tệp...">
             </div>
             <div class="tree-view" id="file-list">
                 <!-- Tree view will be built here by JavaScript -->
@@ -184,61 +221,66 @@
             <!-- Header Row 1: File Info and Status -->
             <div class="d-flex justify-content-between align-items-center mb-2" style="padding-bottom: 12px; border-bottom: 1px solid #dee2e6;">
                 <div>
-                    <h5 class="mb-0" id="current-log-title">Select a log file</h5>
+                    <h5 class="mb-0" id="current-log-title">Chọn một tệp log</h5>
                 </div>
+                
                 <div class="d-flex align-items-center gap-2">
+                    <!-- Refresh Rate Control (Moved to Top) -->
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <label for="refreshRate" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">⚙️ Tốc độ làm mới (ms):</label>
+                        <input type="number" class="form-control form-control-sm" id="refreshRate"
+                            min="100" max="5000" step="100" value="1000" style="width: 100px;">
+                    </div>
+
                     <!-- Auto-scroll checkbox -->
                     <div class="form-check" style="margin-left: auto;">
                         <input class="form-check-input" type="checkbox" id="autoScroll" checked>
-                        <label class="form-check-label" for="autoScroll" style="margin-bottom: 0;">Auto-scroll</label>
+                        <label class="form-check-label" for="autoScroll" style="margin-bottom: 0;">Tự động cuộn</label>
                     </div>
                     <!-- Clear button -->
-                    <button class="btn btn-outline-danger btn-sm" onclick="clearLogs()">Clear</button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="clearLogs()">Xóa</button>
                 </div>
             </div>
 
             <!-- Header Row 2: Filter Controls -->
             <div class="d-flex align-items-center gap-2 mb-3" style="flex-wrap: wrap; padding-bottom: 12px;">
+                
+
                 <!-- Date Search Filter -->
                 <div class="d-flex align-items-center gap-2">
-                    <label for="searchDate" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">📅 Date:</label>
+                    <label for="searchDate" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">📅 Ngày:</label>
                     <input type="date" id="searchDate" class="form-control form-control-sm" style="width: 140px;">
                 </div>
 
                 <!-- Time Range Filter -->
                 <div class="d-flex align-items-center gap-1">
-                    <label for="startTime" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">⏱ From:</label>
+                    <label for="startTime" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">⏱ Từ:</label>
                     <input type="time" id="startTime" class="form-control form-control-sm" step="1" style="width: 110px;" placeholder="HH:mm:ss">
                 </div>
 
                 <div class="d-flex align-items-center gap-1">
-                    <label for="endTime" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">To:</label>
+                    <label for="endTime" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">Đến:</label>
                     <input type="time" id="endTime" class="form-control form-control-sm" step="1" style="width: 110px;" placeholder="HH:mm:ss">
                 </div>
 
                 <!-- Line Count Filter -->
                 <div class="d-flex align-items-center gap-1">
-                    <label for="searchLimit" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">📊 Lines:</label>
+                    <label for="searchLimit" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">📊 Số dòng:</label>
                     <input type="number" id="searchLimit" class="form-control form-control-sm"
                            placeholder="1000" value="1000" min="1" max="10000" style="width: 80px;">
                 </div>
 
-                <!-- Search and Live buttons -->
-                <button class="btn btn-sm btn-primary" onclick="searchLogsByDate()">🔍 Search</button>
-                <button class="btn btn-sm btn-secondary" onclick="backToLiveMode()">📡 Live</button>
-
-                <!-- Refresh Rate Control -->
-                <div class="d-flex align-items-center gap-1" style="margin-left: auto;">
-                    <label for="refreshRate" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">
-                        ⚙️ <span id="refreshRateValue" class="fw-bold">1000</span>ms
-                    </label>
-                    <input type="range" class="form-range" id="refreshRate"
-                           min="100" max="5000" step="100" value="1000" style="width: 120px;">
+                <!-- Advanced Text Search Filter -->
+                <div class="d-flex align-items-center gap-1">
+                    <label for="searchText" class="form-label mb-0" style="white-space: nowrap; font-weight: 500;">🔎 Văn bản:</label>
+                    <input type="text" id="searchText" class="form-control form-control-sm"
+                           placeholder="Nhập từ khóa..." style="width: 150px;">
                 </div>
 
-
-
-
+                <!-- Search and Live buttons -->
+                <button class="btn btn-sm btn-primary" onclick="searchLogsByDate()">Tìm kiếm</button>
+                <button class="btn btn-sm btn-secondary" onclick="backToLiveMode()">Live</button>
+                <button class="btn btn-sm btn-warning" onclick="clearSearchFields()">Reset</button>
             </div>
 
             <div id="log-container">
@@ -248,75 +290,220 @@
     </div>
 </div>
 
-
+<!-- WebSocket Status Indicator -->
+<div class="ws-status">
+    <span class="ws-status-dot" id="wsStatusDot"></span>
+    <span id="wsStatusText">Đang kết nối...</span>
+</div>
 
 <script>
     let stompClient = null;
     let currentSubscription = null;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 10;
+    const INITIAL_RECONNECT_DELAY = 1000; // 1 second
 
     // Performance optimization variables
     const MAX_LOG_LINES = 2000; // Max lines to keep in memory
     let logBuffer = []; // Buffer để batch add logs
     let isProcessingBuffer = false;
     let pendingScroll = false;
-    let cachedContent = null;
-    let cachedContainer = null;
+    let userScrolling = false; // Phát hiện người dùng đang cuộn thủ công
+
+    // Debounce variables
+    let searchFileDebounceTimer = null;
+    const SEARCH_DEBOUNCE_DELAY = 300; // ms
+
+    // Date pattern detection
+    let detectedDatePattern = null;
 
     function getContentElement() {
-        if (!cachedContent) {
-            cachedContent = document.getElementById('log-content');
+        const el = document.getElementById('log-content');
+        if (!el) {
+            console.warn('log-content element not found');
+            return null;
         }
-        return cachedContent;
+        return el;
     }
 
     function getContainerElement() {
-        if (!cachedContainer) {
-            cachedContainer = document.getElementById('log-container');
+        const el = document.getElementById('log-container');
+        if (!el) {
+            console.warn('log-container element not found');
+            return null;
         }
-        return cachedContainer;
+        return el;
+    }
+
+    let wsStatusHideTimer = null;
+
+    function updateWSStatus(connected) {
+        try {
+            const dot = document.getElementById('wsStatusDot');
+            const text = document.getElementById('wsStatusText');
+            const wsStatus = document.querySelector('.ws-status');
+            if (!dot || !text || !wsStatus) return;
+
+            // Clear existing hide timer
+            if (wsStatusHideTimer) {
+                clearTimeout(wsStatusHideTimer);
+                wsStatusHideTimer = null;
+            }
+
+            if (connected) {
+                dot.className = 'ws-status-dot connected';
+                text.textContent = 'Đã kết nối';
+                text.style.color = '#28a745';
+                reconnectAttempts = 0;
+                
+                // Auto-hide after 3 seconds when connected
+                wsStatusHideTimer = setTimeout(() => {
+                    wsStatus.style.opacity = '0';
+                    wsStatus.style.pointerEvents = 'none';
+                    wsStatusHideTimer = null;
+                }, 3000);
+            } else {
+                // Show when disconnected
+                wsStatus.style.opacity = '1';
+                wsStatus.style.pointerEvents = 'auto';
+                dot.className = 'ws-status-dot disconnected';
+                text.textContent = 'Mất kết nối';
+                text.style.color = '#dc3545';
+            }
+        } catch (error) {
+            console.error('Error updating WebSocket status:', error);
+        }
     }
 
     function connect() {
-        const socket = new SockJS('/log-websocket');
-        stompClient = Stomp.over(socket);
-        stompClient.debug = null;
+        try {
+            const socket = new SockJS('/log-websocket');
+            stompClient = Stomp.over(socket);
+            stompClient.debug = null;
 
-        stompClient.connect({}, function (frame) {
-            console.log('Connected to WebSocket');
-            const pathEl = document.getElementById('current-log-path');
-            if (pathEl) pathEl.innerText = "Connected. Monitoring directory...";
+            stompClient.connect({}, function (frame) {
+                console.log('Connected to WebSocket');
+                updateWSStatus(true);
+                reconnectAttempts = 0;
+                const pathEl = document.getElementById('current-log-path');
+                if (pathEl) pathEl.innerText = "Connected. Monitoring directory...";
 
-            stompClient.subscribe('/topic/new-file', function (message) {
-                addNewFileToList(message.body);
+                try {
+                    stompClient.subscribe('/topic/new-file', function (message) {
+                        try {
+                            addNewFileToList(message.body);
+                        } catch (error) {
+                            console.error('Error handling new file:', error);
+                        }
+                    });
+
+                    stompClient.subscribe('/topic/refresh-rate-updated', function (message) {
+                        try {
+                            console.log(message.body);
+                        } catch (error) {
+                            console.error('Error handling refresh rate update:', error);
+                        }
+                    });
+
+                    stompClient.subscribe('/topic/refresh-rate-error', function (message) {
+                        try {
+                            console.error(message.body);
+                            showNotification(message.body, 'error');
+                        } catch (error) {
+                            console.error('Error handling refresh rate error:', error);
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error subscribing to topics:', error);
+                }
+            }, function (error) {
+                console.error('WebSocket connection error:', error);
+                updateWSStatus(false);
+                attemptReconnect();
             });
 
-            stompClient.subscribe('/topic/refresh-rate-updated', function (message) {
-                console.log(message.body);
-                showNotification(message.body, 'success');
-            });
+            socket.onclose = function() {
+                console.log('WebSocket closed');
+                updateWSStatus(false);
+                attemptReconnect();
+            };
+        } catch (error) {
+            console.error('Error creating WebSocket connection:', error);
+            updateWSStatus(false);
+            attemptReconnect();
+        }
+    }
 
-            stompClient.subscribe('/topic/refresh-rate-error', function (message) {
-                console.error(message.body);
-                showNotification(message.body, 'error');
-            });
-        });
+    function attemptReconnect() {
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.error('Max reconnect attempts reached');
+            showNotification('Không thể kết nối sau ' + MAX_RECONNECT_ATTEMPTS + ' lần thử', 'error');
+            return;
+        }
+
+        reconnectAttempts++;
+        const delay = INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttempts - 1); // Exponential backoff
+        const delayCapped = Math.min(delay, 30000); // Cap at 30 seconds
+
+        console.log(`Reconnecting in ${delayCapped}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+        showNotification(`Đang kết nối lại... (lần thử ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`, 'warning');
+
+        setTimeout(() => {
+            connect();
+        }, delayCapped);
     }
 
     function subscribeToLog(logId) {
-        if (!stompClient) return;
-
-        if (currentSubscription) {
-            currentSubscription.unsubscribe();
+        if (!stompClient) {
+            showNotification('WebSocket chưa kết nối', 'error');
+            return;
         }
 
-        document.getElementById('current-log-title').innerText = logId;
-        getContentElement().innerHTML = "";
-        logBuffer = []; // Clear buffer
-        isProcessingBuffer = false;
+        try {
+            if (currentSubscription) {
+                currentSubscription.unsubscribe();
+                currentSubscription = null;
+            }
 
-        currentSubscription = stompClient.subscribe('/topic/logs/' + logId, function (message) {
-            processLogLine(message.body);
-        });
+            const titleEl = document.getElementById('current-log-title');
+            if (titleEl) titleEl.innerText = logId;
+
+            const content = getContentElement();
+            if (content) content.innerHTML = "";
+
+            // Properly clear buffer and cancel pending processing
+            if (isProcessingBuffer) {
+                logBuffer = [];
+                isProcessingBuffer = false;
+            }
+
+            // Initialize date pattern detection
+            let initialLogs = [];
+            let patternDetected = false;
+
+            currentSubscription = stompClient.subscribe('/topic/logs/' + logId, function (message) {
+                try {
+                    processLogLine(message.body);
+                    
+                    // Detect date pattern from first few logs
+                    if (!patternDetected && initialLogs.length < 20) {
+                        initialLogs.push(message.body);
+                        if (initialLogs.length >= 5) {
+                            detectedDatePattern = detectDatePattern(initialLogs);
+                            if (detectedDatePattern) {
+                                console.log('Date pattern detected:', detectedDatePattern);
+                                patternDetected = true;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error processing log line:', error);
+                }
+            });
+        } catch (error) {
+            console.error('Error subscribing to log:', error);
+            showNotification('Lỗi khi đăng ký log: ' + error.message, 'error');
+        }
     }
 
     // Determine log level without toUpperCase (more efficient)
@@ -340,56 +527,80 @@
     }
 
     function flushLogBuffer() {
-        if (logBuffer.length === 0) {
+        try {
+            if (logBuffer.length === 0) {
+                isProcessingBuffer = false;
+                return;
+            }
+
+            const content = getContentElement();
+            const container = getContainerElement();
+
+            if (!content || !container) {
+                logBuffer = [];
+                isProcessingBuffer = false;
+                return;
+            }
+
+            const autoScrollCheckbox = document.getElementById('autoScroll');
+            const shouldScroll = autoScrollCheckbox && autoScrollCheckbox.checked;
+
+            // Use DocumentFragment for batch DOM insertion
+            const fragment = document.createDocumentFragment();
+
+            for (let i = 0; i < logBuffer.length; i++) {
+                const line = logBuffer[i];
+                
+                // Apply text search filter
+                if (searchKeyword && !line.toLowerCase().includes(searchKeyword.toLowerCase())) {
+                    continue;
+                }
+                
+                const div = document.createElement('div');
+                div.className = 'log-entry';
+
+                const level = getLogLevel(line);
+                if (level) {
+                    div.classList.add(level);
+                }
+
+                div.textContent = line;
+                fragment.appendChild(div);
+            }
+
+            // Append all at once
+            content.appendChild(fragment);
+            const bufferLength = logBuffer.length;
+            logBuffer = [];
+
+            // Handle scrolling efficiently
+            if (shouldScroll && !pendingScroll) {
+                pendingScroll = true;
+                requestAnimationFrame(() => {
+                    if (container) {
+                        container.scrollTop = container.scrollHeight;
+                    }
+                    pendingScroll = false;
+                });
+            }
+
+            // Remove old lines if exceeding max
+            const children = content.children;
+            if (children.length > MAX_LOG_LINES) {
+                const toRemove = children.length - MAX_LOG_LINES;
+                for (let i = 0; i < toRemove; i++) {
+                    if (content.children.length > 0) {
+                        content.removeChild(content.children[0]);
+                    }
+                }
+            }
+
             isProcessingBuffer = false;
-            return;
+        } catch (error) {
+            console.error('Error flushing log buffer:', error);
+            logBuffer = [];
+            isProcessingBuffer = false;
         }
-
-        const content = getContentElement();
-        const container = getContainerElement();
-        const autoScrollCheckbox = document.getElementById('autoScroll');
-        const shouldScroll = autoScrollCheckbox && autoScrollCheckbox.checked;
-
-        // Use DocumentFragment for batch DOM insertion
-        const fragment = document.createDocumentFragment();
-
-        for (let i = 0; i < logBuffer.length; i++) {
-            const line = logBuffer[i];
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-
-            const level = getLogLevel(line);
-            if (level) {
-                div.classList.add(level);
-            }
-
-            div.textContent = line;
-            fragment.appendChild(div);
-        }
-
-        // Append all at once
-        content.appendChild(fragment);
-        logBuffer = [];
-
-        // Handle scrolling efficiently
-        if (shouldScroll && !pendingScroll) {
-            pendingScroll = true;
-            requestAnimationFrame(() => {
-                container.scrollTop = container.scrollHeight;
-                pendingScroll = false;
-            });
-        }
-
-        // Remove old lines if exceeding max
-        const children = content.children;
-        if (children.length > MAX_LOG_LINES) {
-            const toRemove = children.length - MAX_LOG_LINES;
-            for (let i = 0; i < toRemove; i++) {
-                content.removeChild(children[0]);
-            }
-        }
-
-        isProcessingBuffer = false;
     }
 
     function addNewFileToList(fileName) {
@@ -411,6 +622,15 @@
         });
 
         attachTreeListeners();
+        
+        // Collapse all folders on initial load
+        document.querySelectorAll('.tree-children').forEach(children => {
+            children.classList.add('collapsed');
+        });
+        document.querySelectorAll('.tree-toggle').forEach(toggle => {
+            toggle.classList.add('collapsed');
+            toggle.classList.remove('expanded');
+        });
     }
 
     function buildTreeStructure(files) {
@@ -467,14 +687,20 @@
             // Folder node
             const folderDiv = document.createElement('div');
             folderDiv.className = 'tree-folder';
+            folderDiv.style.cursor = 'pointer';
             const hasChildren = node.children && node.children.length > 0;
 
             const toggle = document.createElement('span');
             toggle.className = 'tree-toggle expanded';
             toggle.style.visibility = hasChildren ? 'visible' : 'hidden';
+            toggle.textContent = '';
+
+            const folderLabel = document.createElement('span');
+            folderLabel.style.fontWeight = '500';
+            folderLabel.textContent = '📁 ' + node.name;
 
             folderDiv.appendChild(toggle);
-            folderDiv.innerHTML += `<span style="font-weight: 500;">📁 ${node.name}</span>`;
+            folderDiv.appendChild(folderLabel);
 
             const childrenDiv = document.createElement('div');
             childrenDiv.className = 'tree-children';
@@ -484,12 +710,16 @@
                     childrenDiv.appendChild(createTreeNode(child, 1));
                 });
 
-                toggle.addEventListener('click', function(e) {
+                // Toggle handler for both folder click and arrow click
+                const toggleHandler = function(e) {
                     e.stopPropagation();
                     toggle.classList.toggle('collapsed');
                     toggle.classList.toggle('expanded');
                     childrenDiv.classList.toggle('collapsed');
-                });
+                };
+
+                // Allow clicking on the entire folder to toggle
+                folderDiv.addEventListener('click', toggleHandler);
             }
 
             div.appendChild(folderDiv);
@@ -508,6 +738,9 @@
         element.classList.add('active');
         element.querySelector('.status-dot').classList.add('active');
 
+        // Yêu cầu backend tail file này (hữu ích cho file archive)
+        tailFileOnDemand(logId);
+
         // Subscribe to the log
         subscribeToLog(logId);
 
@@ -515,34 +748,75 @@
         loadAvailableDates(logId);
     }
 
-    function loadAvailableDates(logId) {
-        // Lấy service name từ logId (VD: "order-service/app.log" -> "order-service")
-        const serviceName = logId.substring(0, logId.lastIndexOf('/'));
-
-        fetch(`/api/logs/dates/${serviceName}`)
-            .then(response => response.json())
-            .then(dates => {
-                if (dates.length > 0) {
-                    // Set date picker suggestions
-                    const dateInput = document.getElementById('searchDate');
-
-                    // Set min/max based on available dates
-                    const sortedDates = dates.sort();
-                    dateInput.min = sortedDates[0];
-                    dateInput.max = sortedDates[sortedDates.length - 1];
-
-                    // Auto-select today or latest date
-                    const today = new Date().toISOString().split('T')[0];
-                    if (dates.includes(today)) {
-                        dateInput.value = today;
-                    } else if (dates.length > 0) {
-                        dateInput.value = sortedDates[sortedDates.length - 1];
-                    }
-
-                    console.log('Available dates for', serviceName, ':', dates);
+    function tailFileOnDemand(logId) {
+        try {
+            // Gửi request để backend tail file này
+            fetch(`/api/logs/tail/${encodeURIComponent(logId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.warn('Tail file response status:', response.status, 'for logId:', logId);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    console.log('File tailing started:', logId);
+                } else {
+                    console.warn('Tail file warning:', data.error, 'for logId:', logId);
                 }
             })
-            .catch(error => console.error('Error loading available dates:', error));
+            .catch(error => {
+                console.error('Error requesting file tail:', error);
+            });
+        } catch (error) {
+            console.error('Error in tailFileOnDemand:', error);
+        }
+    }
+
+    function loadAvailableDates(logId) {
+        try {
+            // Lấy service name từ logId (VD: "order-service/app.log" -> "order-service")
+            const serviceName = logId.substring(0, logId.lastIndexOf('/'));
+
+            fetch(`/api/logs/dates/${serviceName}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(dates => {
+                    if (dates && dates.length > 0) {
+                        // Set date picker suggestions
+                        const dateInput = document.getElementById('searchDate');
+                        if (!dateInput) return;
+
+                        // Set min/max based on available dates
+                        const sortedDates = dates.sort();
+                        dateInput.min = sortedDates[0];
+                        dateInput.max = sortedDates[sortedDates.length - 1];
+
+                        // Auto-select today or latest date
+                        const today = new Date().toISOString().split('T')[0];
+                        if (dates.includes(today)) {
+                            dateInput.value = today;
+                        } else if (dates.length > 0) {
+                            dateInput.value = sortedDates[sortedDates.length - 1];
+                        }
+
+                        console.log('Available dates for', serviceName, ':', dates);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading available dates:', error);
+                    showNotification('Không thể tải danh sách ngày', 'warning');
+                });
+        } catch (error) {
+            console.error('Error in loadAvailableDates:', error);
+        }
     }
 
     function attachTreeListeners() {
@@ -559,7 +833,20 @@
         document.getElementById('log-content').innerHTML = "";
     }
 
+    function clearSearchFields() {
+        document.getElementById('searchDate').value = '';
+        document.getElementById('startTime').value = '';
+        document.getElementById('endTime').value = '';
+        document.getElementById('searchLimit').value = '1000';
+        document.getElementById('searchText').value = '';
+        searchKeyword = '';
+        document.getElementById('searchFile').value = '';
+        showNotification('Đã xóa các trường tìm kiếm', 'success');
+    }
+
     let isLiveMode = true;
+    let searchKeyword = ''; // Global variable for text search filter
+    let searchKeywordDebounceTimer = null;
 
     function searchLogsByDate() {
         const currentFile = document.getElementById('current-log-title').innerText;
@@ -568,12 +855,12 @@
         const startTime = document.getElementById('startTime').value; // HH:mm or HH:mm:ss
         const endTime = document.getElementById('endTime').value;     // HH:mm or HH:mm:ss
 
-        if (currentFile === "Select a log file") {
-            showNotification('Please select a log file first', 'warning');
+        if (currentFile === "Chọn một tệp log") {
+            showNotification('Vui lòng chọn tệp log trước', 'warning');
             return;
         }
         if (!searchDate) {
-            showNotification('Please select a date to search', 'warning');
+            showNotification('Vui lòng chọn ngày để tìm kiếm', 'warning');
             return;
         }
 
@@ -606,7 +893,7 @@
             infoDiv.className = 'log-entry info';
             infoDiv.style.fontWeight = 'bold';
             const timeInfo = (startTime || endTime) ? ` | Time: ${startTime || '00:00'} - ${endTime || '23:59:59'}` : '';
-            infoDiv.textContent = `🔍 Search Results for ${searchDate}${timeInfo} | Found: ${data.totalCount} logs | Showing: ${Math.min(data.totalCount, searchLimit)} logs`;
+            infoDiv.textContent = `🔍 Kết quả tìm kiếm cho ${searchDate}${timeInfo} | Tìm thấy: ${data.totalCount} logs | Hiển thị: ${Math.min(data.totalCount, searchLimit)} logs`;
             content.appendChild(infoDiv);
 
             if (data.logs && data.logs.length > 0) {
@@ -622,18 +909,18 @@
                     content.appendChild(div);
                 });
                 document.getElementById('log-container').scrollTop = 0;
-                showNotification(`Found ${data.totalCount} logs`, 'success');
+                showNotification(`Tìm thấy ${data.totalCount} logs`, 'success');
             } else {
                 const noDataDiv = document.createElement('div');
                 noDataDiv.className = 'log-entry warn';
-                noDataDiv.textContent = '⚠️ No logs found for this query';
+                noDataDiv.textContent = '⚠️ Không tìm thấy log nào cho truy vấn này';
                 content.appendChild(noDataDiv);
-                showNotification('No logs found for this query', 'warning');
+                showNotification('Không tìm thấy log nào cho truy vấn này', 'warning');
             }
         })
         .catch(error => {
             console.error('Error searching logs:', error);
-            showNotification('Error searching logs: ' + error.message, 'error');
+            showNotification('Lỗi khi tìm kiếm log: ' + error.message, 'error');
         });
     }
 
@@ -642,12 +929,12 @@
         clearLogs();
 
         const currentFile = document.getElementById('current-log-title').innerText;
-        if (currentFile !== "Select a log file") {
+        if (currentFile !== "Chọn một tệp log") {
             const logId = currentFile;
             subscribeToLog(logId);
-            showNotification('Switched to Live Mode', 'success');
+            showNotification('Đã chuyển sang chế độ trực tiếp', 'success');
         } else {
-            showNotification('Please select a log file', 'warning');
+            showNotification('Vui lòng chọn tệp log', 'warning');
         }
     }
 
@@ -671,34 +958,123 @@
         }, 3000);
     }
 
-    // Bộ lọc tìm kiếm file log
-    document.getElementById('searchFile').addEventListener('input', function (e) {
-        const term = e.target.value.toLowerCase();
-        document.querySelectorAll('.tree-file').forEach(item => {
-            const text = item.textContent.toLowerCase();
-            item.style.display = text.includes(term) ? 'flex' : 'none';
-        });
-
-        // Tự động mở các folder cha nếu file con match với tìm kiếm
-        if (term.length > 0) {
-            document.querySelectorAll('.tree-folder').forEach(folder => {
-                const visibleChildren = Array.from(folder.parentElement.querySelector('.tree-children')?.querySelectorAll('.tree-file') || [])
-                    .some(child => child.style.display !== 'none');
-                folder.parentElement.querySelector('.tree-children').classList.toggle('collapsed', !visibleChildren);
-                folder.querySelector('.tree-toggle').classList.toggle('expanded', visibleChildren);
-                folder.querySelector('.tree-toggle').classList.toggle('collapsed', !visibleChildren);
+    function detectDatePattern(logSamples) {
+        try {
+            // Common date patterns to match (including variants with milliseconds)
+            const patterns = [
+                // With milliseconds (SSS)
+                { regex: /\d{2}\/\d{2}\/\d{4}\s\d{2}:\d{2}:\d{2}\.\d{1,3}/, format: 'dd/MM/yyyy HH:mm:ss.SSS' },
+                { regex: /\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\.\d{1,3}/, format: 'yyyy-MM-dd HH:mm:ss.SSS' },
+                { regex: /\d{2}-\d{2}-\d{4}\s\d{2}:\d{2}:\d{2}\.\d{1,3}/, format: 'dd-MM-yyyy HH:mm:ss.SSS' },
+                { regex: /\d{2}\.\d{2}\.\d{4}\s\d{2}:\d{2}:\d{2}\.\d{1,3}/, format: 'dd.MM.yyyy HH:mm:ss.SSS' },
+                { regex: /\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}\.\d{1,3}/, format: 'yyyy/MM/dd HH:mm:ss.SSS' },
+                { regex: /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{1,3}/, format: 'ISO 8601 (yyyy-MM-ddTHH:mm:ss.SSS)' },
+                { regex: /\[(\d{2}\/\d{2}\/\d{4}\s\d{2}:\d{2}:\d{2}\.\d{1,3})\]/, format: '[dd/MM/yyyy HH:mm:ss.SSS]' },
+                
+                // Without milliseconds
+                { regex: /\d{2}\/\d{2}\/\d{4}\s\d{2}:\d{2}:\d{2}/, format: 'dd/MM/yyyy HH:mm:ss' },
+                { regex: /\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}/, format: 'yyyy-MM-dd HH:mm:ss' },
+                { regex: /\d{2}-\d{2}-\d{4}\s\d{2}:\d{2}:\d{2}/, format: 'dd-MM-yyyy HH:mm:ss' },
+                { regex: /\d{2}\.\d{2}\.\d{4}\s\d{2}:\d{2}:\d{2}/, format: 'dd.MM.yyyy HH:mm:ss' },
+                { regex: /\d{4}\/\d{2}\/\d{2}\s\d{2}:\d{2}:\d{2}/, format: 'yyyy/MM/dd HH:mm:ss' },
+                { regex: /\d{2}\/\d{2}\/\d{4}/, format: 'dd/MM/yyyy' },
+                { regex: /\d{4}-\d{2}-\d{2}/, format: 'yyyy-MM-dd' },
+                { regex: /\d{2}-\d{2}-\d{4}/, format: 'dd-MM-yyyy' },
+                { regex: /\d{2}\.\d{2}\.\d{4}/, format: 'dd.MM.yyyy' },
+                { regex: /\[(\d{2}\/\d{2}\/\d{4}\s\d{2}:\d{2}:\d{2})\]/, format: '[dd/MM/yyyy HH:mm:ss]' },
+                { regex: /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/, format: 'ISO 8601 (yyyy-MM-ddTHH:mm:ss)' }
+            ];
+            
+            // Count matches for each pattern
+            const matches = {};
+            patterns.forEach(p => {
+                matches[p.format] = 0;
             });
-        } else {
-            // Reset to default state
-            document.querySelectorAll('.tree-children').forEach(children => {
-                children.classList.remove('collapsed');
+            
+            // Test each log sample against patterns
+            logSamples.forEach(log => {
+                patterns.forEach(p => {
+                    if (p.regex.test(log)) {
+                        matches[p.format]++;
+                    }
+                });
             });
-            document.querySelectorAll('.tree-toggle').forEach(toggle => {
-                toggle.classList.add('expanded');
-                toggle.classList.remove('collapsed');
-            });
+            
+            // Find the pattern with most matches
+            let maxMatches = 0;
+            let detectedPattern = null;
+            
+            for (const [format, count] of Object.entries(matches)) {
+                if (count > maxMatches) {
+                    maxMatches = count;
+                    detectedPattern = format;
+                }
+            }
+            
+            // Return pattern if at least 50% of logs matched
+            if (maxMatches >= logSamples.length * 0.5) {
+                return detectedPattern;
+            }
+            
+            return null;
+        } catch (error) {
+            console.error('Error detecting date pattern:', error);
+            return null;
         }
-    });
+    }
+
+    // Bộ lọc tìm kiếm file log - with debounce
+    function performFileSearch(term) {
+        try {
+            const lowerTerm = term.toLowerCase();
+            document.querySelectorAll('.tree-file').forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(lowerTerm) ? 'flex' : 'none';
+            });
+
+            // Tự động mở các folder cha nếu file con match với tìm kiếm
+            if (lowerTerm.length > 0) {
+                document.querySelectorAll('.tree-folder').forEach(folder => {
+                    const treeChildren = folder.parentElement?.querySelector('.tree-children');
+                    if (!treeChildren) return;
+
+                    const visibleChildren = Array.from(treeChildren.querySelectorAll('.tree-file') || [])
+                        .some(child => child.style.display !== 'none');
+                    treeChildren.classList.toggle('collapsed', !visibleChildren);
+                    const toggle = folder.querySelector('.tree-toggle');
+                    if (toggle) {
+                        toggle.classList.toggle('expanded', visibleChildren);
+                        toggle.classList.toggle('collapsed', !visibleChildren);
+                    }
+                });
+            } else {
+                // Reset to default state
+                document.querySelectorAll('.tree-children').forEach(children => {
+                    children.classList.remove('collapsed');
+                });
+                document.querySelectorAll('.tree-toggle').forEach(toggle => {
+                    toggle.classList.add('expanded');
+                    toggle.classList.remove('collapsed');
+                });
+            }
+        } catch (error) {
+            console.error('Error performing file search:', error);
+        }
+    }
+
+    const searchFileInput = document.getElementById('searchFile');
+    if (searchFileInput) {
+        searchFileInput.addEventListener('input', function (e) {
+            // Clear existing timer
+            if (searchFileDebounceTimer) {
+                clearTimeout(searchFileDebounceTimer);
+            }
+            // Set new timer with debounce
+            searchFileDebounceTimer = setTimeout(() => {
+                performFileSearch(e.target.value);
+            }, SEARCH_DEBOUNCE_DELAY);
+        });
+    }
 
     // Thêm event listener cho các button log file
     document.addEventListener('DOMContentLoaded', function() {
@@ -709,33 +1085,131 @@
         }
 
         // Xử lý thay đổi refresh rate
-        const refreshRateSlider = document.getElementById('refreshRate');
-        const refreshRateValue = document.getElementById('refreshRateValue');
+        const refreshRateInput = document.getElementById('refreshRate');
 
-        refreshRateSlider.addEventListener('input', function() {
-            refreshRateValue.textContent = this.value;
-        });
-
-        refreshRateSlider.addEventListener('change', function() {
+        refreshRateInput.addEventListener('change', function() {
             const newRate = parseInt(this.value);
             updateRefreshRate(newRate);
         });
+
+        // Xử lý advanced text search filter với debounce
+        const searchTextInput = document.getElementById('searchText');
+        if (searchTextInput) {
+            searchTextInput.addEventListener('input', function (e) {
+                // Clear existing timer
+                if (searchKeywordDebounceTimer) {
+                    clearTimeout(searchKeywordDebounceTimer);
+                }
+                // Set new timer with debounce (real-time filtering)
+                searchKeywordDebounceTimer = setTimeout(() => {
+                    searchKeyword = e.target.value.trim();
+                    
+                    // Nếu ở live mode, refresh màn hình để áp dụng filter
+                    if (isLiveMode) {
+                        const content = getContentElement();
+                        if (content) {
+                            // Refilter logs on screen
+                            refilterlLogs();
+                        }
+                    }
+                    
+                    console.log('Search keyword updated:', searchKeyword);
+                }, 300); // 300ms debounce
+            });
+        }
     });
 
-    function updateRefreshRate(rateMs) {
-        if (!stompClient || !stompClient.connected) {
-            console.warn('WebSocket chưa kết nối');
-            return;
+    function refilterlLogs() {
+        try {
+            const content = getContentElement();
+            if (!content) return;
+
+            // Get all log entries
+            const allLogs = Array.from(content.children).map(el => el.textContent);
+            
+            // Clear and refilter
+            content.innerHTML = '';
+            const fragment = document.createDocumentFragment();
+
+            allLogs.forEach(line => {
+                // Apply text search filter
+                if (searchKeyword && !line.toLowerCase().includes(searchKeyword.toLowerCase())) {
+                    return; // Skip this log
+                }
+
+                const div = document.createElement('div');
+                div.className = 'log-entry';
+
+                const level = getLogLevel(line);
+                if (level) {
+                    div.classList.add(level);
+                }
+
+                div.textContent = line;
+                fragment.appendChild(div);
+            });
+
+            content.appendChild(fragment);
+        } catch (error) {
+            console.error('Error refiltering logs:', error);
         }
-
-        // Gửi yêu cầu cập nhật refresh rate về backend
-        stompClient.send('/app/update-refresh-rate', {}, JSON.stringify({
-            rate: rateMs
-        }));
-
-        console.log('Đã cập nhật refresh rate: ' + rateMs + 'ms');
     }
 
+    function updateRefreshRate(rateMs) {
+        try {
+            if (!stompClient || !stompClient.connected) {
+                console.warn('WebSocket chưa kết nối');
+                showNotification('WebSocket chưa kết nối', 'warning');
+                return;
+            }
+
+            // Gửi yêu cầu cập nhật refresh rate về backend
+            stompClient.send('/app/update-refresh-rate', {}, JSON.stringify({
+                rate: rateMs
+            }));
+
+            console.log('Đã cập nhật refresh rate: ' + rateMs + 'ms');
+        } catch (error) {
+            console.error('Error updating refresh rate:', error);
+            showNotification('Lỗi khi cập nhật tốc độ làm mới: ' + error.message, 'error');
+        }
+    }
+
+    // Initialize WebSocket status
+    updateWSStatus(false);
+
+    // Setup scroll event listener for auto-scroll control
+    (function() {
+        const container = getContainerElement();
+        const autoScrollCheckbox = document.getElementById('autoScroll');
+        if (!container || !autoScrollCheckbox) return;
+
+        let scrollTimeout = null;
+
+        container.addEventListener('scroll', function() {
+            // Chỉ xử lý khi đang ở live mode
+            if (!isLiveMode) return;
+
+            // Clear timeout cũ
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+
+            // Kiểm tra xem có đang ở cuối trang hay không
+            const isAtBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 50;
+
+            // Chỉ tắt auto-scroll khi người dùng cuộn lên, không tự động bật lại
+            if (!isAtBottom) {
+                // Người dùng đang cuộn lên hoặc ở giữa -> tắt auto-scroll
+                scrollTimeout = setTimeout(() => {
+                    if (autoScrollCheckbox.checked && !pendingScroll) {
+                        autoScrollCheckbox.checked = false;
+                        userScrolling = true;
+                    }
+                }, 100); // Debounce 100ms để tránh toggle liên tục
+            }
+        });
+    })();
 
     // Khởi tạo
     connect();
