@@ -1,18 +1,18 @@
 package com.example.demo;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
+@Slf4j
 @Controller
+@RequiredArgsConstructor
 public class LogWebSocketController {
 
-    @Autowired
-    private DynamicLogManagerService logManagerService;
-
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
+    private final DynamicLogManagerService logManagerService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Xử lý yêu cầu cập nhật refresh rate từ client
@@ -21,21 +21,20 @@ public class LogWebSocketController {
     public void updateRefreshRate(RefreshRateRequest request) {
         try {
             long newRate = request.getRate();
-            System.out.println("Nhận yêu cầu cập nhật refresh rate: " + newRate + "ms");
+            log.info("Received refresh rate update request: {}ms", newRate);
 
             logManagerService.updateRefreshRate(newRate);
 
             // Thông báo cho tất cả client biết refresh rate đã thay đổi
             messagingTemplate.convertAndSend("/topic/refresh-rate-updated",
-                "Refresh rate đã được cập nhật: " + newRate + "ms");
+                "Refresh rate updated: " + newRate + "ms");
 
         } catch (Exception e) {
-            System.err.println("Lỗi khi cập nhật refresh rate: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error updating refresh rate: {}", e.getMessage(), e);
 
             // Gửi thông báo lỗi
             messagingTemplate.convertAndSend("/topic/refresh-rate-error",
-                "Lỗi khi cập nhật refresh rate: " + e.getMessage());
+                "Error updating refresh rate: " + e.getMessage());
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.demo;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
+@Slf4j
 @Controller
 public class LogViewController {
 
@@ -46,18 +48,12 @@ public class LogViewController {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Lỗi khi quét thư mục log: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error scanning log directory: {}", e.getMessage(), e);
         }
 
         model.addAttribute("files", logFiles);
         model.addAttribute("os", IS_WINDOWS ? "Windows" : (IS_LINUX ? "Linux" : "Other"));
         return "log-monitor";
-    }
-
-    @GetMapping("/test-search")
-    public String testSearch() {
-        return "test-log-search";
     }
 
     /**

@@ -4,7 +4,7 @@ import com.example.demo.dto.LogSearchRequest;
 import com.example.demo.dto.LogSearchResponse;
 import com.example.demo.model.LogEntry;
 import com.example.demo.service.LogReaderService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,10 +13,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/logs")
 @CrossOrigin(origins = "*")
+@RequiredArgsConstructor
 public class LogSearchController {
 
-    @Autowired
-    private LogReaderService logReaderService;
+    private final LogReaderService logReaderService;
 
     @PostMapping("/search")
     public ResponseEntity<LogSearchResponse> searchLogs(@RequestBody LogSearchRequest request) {

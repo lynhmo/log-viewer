@@ -1,6 +1,6 @@
 spring:
   application:
-    name: demo1
+    name: logsee
 server:
   port: 8080
 
@@ -19,3 +19,6 @@ app:
     base-path: ./logs
     service-name: order-service
     service-name2: checkout-service
+  demo:
+    log-generator:
+      enabled: true

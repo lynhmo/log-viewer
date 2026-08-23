@@ -2,7 +2,7 @@
 <html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Gemini Realtime Log Monitor</title>
+    <title>LogSee - Log Monitor</title>
     <!-- Correct Thymeleaf static resource URL for CSS -->
     <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}" href="/css/bootstrap.min.css">
     
@@ -162,9 +162,129 @@
             background-color: #0dcaf0;
             box-shadow: 0 0 4px #0dcaf0;
         }
+
+        /* Mode Indicator */
+        .mode-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .mode-indicator.live {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+        .mode-indicator.search {
+            background-color: #cff4fc;
+            color: #055160;
+        }
+        .mode-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .mode-dot.live { background-color: #198754; }
+        .mode-dot.search { background-color: #0dcaf0; }
+
+        /* Search Panel */
+        #search-panel {
+            display: none;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            height: calc(100vh - 150px);
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: inset 0 0 10px #000;
+            font-size: 13px;
+        }
+        #search-panel.active {
+            display: block;
+        }
+        #search-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #444;
+            color: #0dcaf0;
+            font-weight: bold;
+        }
+        #search-panel-header .close-btn {
+            cursor: pointer;
+            color: #f44747;
+            font-size: 20px;
+            line-height: 1;
+            background: none;
+            border: none;
+            padding: 0 4px;
+        }
+        #search-panel-header .close-btn:hover {
+            color: #ff6b6b;
+        }
+
+        /* Loading Spinner */
+        #search-spinner {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #0dcaf0;
+        }
+        #search-spinner.active {
+            display: block;
+        }
+
+        /* Empty State */
+        #empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: calc(100vh - 150px);
+            color: #6c757d;
+            text-align: center;
+            padding: 20px;
+        }
+        #empty-state.hidden {
+            display: none;
+        }
+        #empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        #empty-state .title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #adb5bd;
+        }
+        #empty-state .subtitle {
+            font-size: 14px;
+            max-width: 400px;
+        }
+
+        /* Toast container */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        .toast-container .toast {
+            min-width: 300px;
+        }
     </style>
 </head>
 <body>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
 
 <div class="container-fluid">
     <div class="row">
@@ -183,8 +303,12 @@
         <div class="col-md-10 pt-4">
             <!-- Header Row 1: File Info and Status -->
             <div class="d-flex justify-content-between align-items-center mb-2" style="padding-bottom: 12px; border-bottom: 1px solid #dee2e6;">
-                <div>
+                <div class="d-flex align-items-center gap-3">
                     <h5 class="mb-0" id="current-log-title">Select a log file</h5>
+                    <span id="modeIndicator" class="mode-indicator live">
+                        <span class="mode-dot live"></span>
+                        <span id="modeLabel">Live Mode</span>
+                    </span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <!-- Auto-scroll checkbox -->
@@ -241,8 +365,34 @@
 
             </div>
 
-            <div id="log-container">
+            <!-- Empty State -->
+            <div id="empty-state">
+                <div class="icon">📡</div>
+                <div class="title">Welcome to LogSee</div>
+                <div class="subtitle">
+                    Select a log file from the sidebar to start monitoring in real-time, or use the search controls to find historical logs.
+                </div>
+            </div>
+
+            <div id="log-container" style="display: none;">
                 <div id="log-content"></div>
+            </div>
+
+            <!-- Search Spinner -->
+            <div id="search-spinner">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2">Searching logs...</div>
+            </div>
+
+            <!-- Search Panel -->
+            <div id="search-panel">
+                <div id="search-panel-header">
+                    <span id="search-panel-title">🔍 Search Results</span>
+                    <button class="close-btn" onclick="closeSearchPanel()">&times;</button>
+                </div>
+                <div id="search-panel-content"></div>
             </div>
         </div>
     </div>
@@ -311,8 +461,10 @@
 
         document.getElementById('current-log-title').innerText = logId;
         getContentElement().innerHTML = "";
-        logBuffer = []; // Clear buffer
+        logBuffer = [];
         isProcessingBuffer = false;
+
+        showLivePanel();
 
         currentSubscription = stompClient.subscribe('/topic/logs/' + logId, function (message) {
             processLogLine(message.body);
@@ -511,6 +663,9 @@
         // Subscribe to the log
         subscribeToLog(logId);
 
+        // Load historical log lines (last N lines)
+        loadHistoricalLogs(logId, 100);
+
         // Load available dates for date picker
         loadAvailableDates(logId);
     }
@@ -545,6 +700,71 @@
             .catch(error => console.error('Error loading available dates:', error));
     }
 
+    function loadHistoricalLogs(logId, lineCount = 100) {
+        const content = getContentElement();
+
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'log-entry info';
+        loadingDiv.id = 'historical-loading';
+        loadingDiv.textContent = '⏳ Loading historical logs...';
+        content.appendChild(loadingDiv);
+
+        fetch(`/api/historical-logs?logFile=${encodeURIComponent(logId)}&lineCount=${lineCount}`)
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('historical-loading')?.remove();
+
+                if (data.success && data.lines && data.lines.length > 0) {
+                    const fragment = document.createDocumentFragment();
+
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'log-entry info';
+                    headerDiv.style.fontWeight = 'bold';
+                    headerDiv.style.borderBottom = '1px solid #0dcaf0';
+                    headerDiv.style.marginBottom = '5px';
+                    headerDiv.textContent = `📜 Loaded ${data.loadedLines} historical lines (of ${data.totalLines} total)`;
+                    fragment.appendChild(headerDiv);
+
+                    data.lines.forEach(line => {
+                        const div = document.createElement('div');
+                        div.className = 'log-entry';
+                        const level = getLogLevel(line);
+                        if (level) div.classList.add(level);
+                        div.textContent = line;
+                        fragment.appendChild(div);
+                    });
+
+                    content.insertBefore(fragment, content.firstChild);
+
+                    if (document.getElementById('autoScroll').checked) {
+                        requestAnimationFrame(() => {
+                            document.getElementById('log-container').scrollTop =
+                                document.getElementById('log-container').scrollHeight;
+                        });
+                    }
+                } else {
+                    const noDataDiv = document.createElement('div');
+                    noDataDiv.className = 'log-entry info';
+                    noDataDiv.textContent = '📭 No historical log lines available';
+                    content.insertBefore(noDataDiv, content.firstChild);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading historical logs:', error);
+                document.getElementById('historical-loading')?.remove();
+
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'log-entry error';
+                errorDiv.textContent = '⚠️ Failed to load historical logs: ' + error.message;
+                content.insertBefore(errorDiv, content.firstChild);
+
+                showNotification('Could not load historical logs', 'error');
+            });
+    }
+
     function attachTreeListeners() {
         document.querySelectorAll('.tree-file').forEach(btn => {
             btn.addEventListener('click', function(e) {
@@ -561,12 +781,47 @@
 
     let isLiveMode = true;
 
+    function setMode(mode) {
+        const indicator = document.getElementById('modeIndicator');
+        const dot = indicator.querySelector('.mode-dot');
+        const label = document.getElementById('modeLabel');
+        if (mode === 'live') {
+            indicator.className = 'mode-indicator live';
+            dot.className = 'mode-dot live';
+            label.textContent = 'Live Mode';
+        } else {
+            indicator.className = 'mode-indicator search';
+            dot.className = 'mode-dot search';
+            label.textContent = 'Search Results';
+        }
+    }
+
+    function showSearchPanel() {
+        document.getElementById('log-container').style.display = 'none';
+        document.getElementById('search-panel').classList.add('active');
+        document.getElementById('search-spinner').classList.remove('active');
+        document.getElementById('empty-state').classList.add('hidden');
+        setMode('search');
+    }
+
+    function showLivePanel() {
+        document.getElementById('log-container').style.display = 'block';
+        document.getElementById('search-panel').classList.remove('active');
+        document.getElementById('search-spinner').classList.remove('active');
+        document.getElementById('empty-state').classList.add('hidden');
+        setMode('live');
+    }
+
+    function closeSearchPanel() {
+        backToLiveMode();
+    }
+
     function searchLogsByDate() {
         const currentFile = document.getElementById('current-log-title').innerText;
         const searchDate = document.getElementById('searchDate').value;
         const searchLimit = document.getElementById('searchLimit').value || 1000;
-        const startTime = document.getElementById('startTime').value; // HH:mm or HH:mm:ss
-        const endTime = document.getElementById('endTime').value;     // HH:mm or HH:mm:ss
+        const startTime = document.getElementById('startTime').value;
+        const endTime = document.getElementById('endTime').value;
 
         if (currentFile === "Select a log file") {
             showNotification('Please select a log file first', 'warning');
@@ -585,6 +840,13 @@
             currentSubscription = null;
         }
 
+        // Show loading spinner
+        document.getElementById('log-container').style.display = 'none';
+        document.getElementById('search-panel').classList.remove('active');
+        document.getElementById('search-spinner').classList.add('active');
+        document.getElementById('empty-state').classList.add('hidden');
+        setMode('search');
+
         const payload = {
             date: searchDate,
             serviceName: serviceName,
@@ -600,14 +862,15 @@
         })
         .then(response => response.json())
         .then(data => {
-            clearLogs();
-            const content = document.getElementById('log-content');
-            const infoDiv = document.createElement('div');
-            infoDiv.className = 'log-entry info';
-            infoDiv.style.fontWeight = 'bold';
+            const panelContent = document.getElementById('search-panel-content');
+            panelContent.innerHTML = '';
+
             const timeInfo = (startTime || endTime) ? ` | Time: ${startTime || '00:00'} - ${endTime || '23:59:59'}` : '';
-            infoDiv.textContent = `🔍 Search Results for ${searchDate}${timeInfo} | Found: ${data.totalCount} logs | Showing: ${Math.min(data.totalCount, searchLimit)} logs`;
-            content.appendChild(infoDiv);
+            const headerInfo = document.createElement('div');
+            headerInfo.className = 'log-entry info';
+            headerInfo.style.fontWeight = 'bold';
+            headerInfo.textContent = `🔍 Search Results for ${searchDate}${timeInfo} | Found: ${data.totalCount} logs | Showing: ${Math.min(data.totalCount, searchLimit)} logs`;
+            panelContent.appendChild(headerInfo);
 
             if (data.logs && data.logs.length > 0) {
                 data.logs.forEach(logEntry => {
@@ -619,27 +882,30 @@
                     else if (level === 'INFO') div.classList.add('info');
                     else if (level === 'DEBUG') div.classList.add('debug');
                     div.textContent = logEntry.rawLine;
-                    content.appendChild(div);
+                    panelContent.appendChild(div);
                 });
-                document.getElementById('log-container').scrollTop = 0;
+                document.getElementById('search-panel').scrollTop = 0;
                 showNotification(`Found ${data.totalCount} logs`, 'success');
             } else {
                 const noDataDiv = document.createElement('div');
                 noDataDiv.className = 'log-entry warn';
                 noDataDiv.textContent = '⚠️ No logs found for this query';
-                content.appendChild(noDataDiv);
+                panelContent.appendChild(noDataDiv);
                 showNotification('No logs found for this query', 'warning');
             }
+            showSearchPanel();
         })
         .catch(error => {
             console.error('Error searching logs:', error);
             showNotification('Error searching logs: ' + error.message, 'error');
+            showLivePanel();
         });
     }
 
     function backToLiveMode() {
         isLiveMode = true;
-        clearLogs();
+        document.getElementById('search-panel').classList.remove('active');
+        document.getElementById('search-spinner').classList.remove('active');
 
         const currentFile = document.getElementById('current-log-title').innerText;
         if (currentFile !== "Select a log file") {
@@ -647,28 +913,33 @@
             subscribeToLog(logId);
             showNotification('Switched to Live Mode', 'success');
         } else {
+            document.getElementById('empty-state').classList.remove('hidden');
+            document.getElementById('log-container').style.display = 'none';
+            setMode('live');
             showNotification('Please select a log file', 'warning');
         }
     }
 
     function showNotification(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} position-fixed`;
-        toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);';
-        toast.innerHTML = `
-            <div class="d-flex align-items-center">
-                <div class="flex-grow-1">${message}</div>
-                <button type="button" class="btn-close ms-2" onclick="this.parentElement.parentElement.remove()"></button>
+        const container = document.getElementById('toastContainer');
+        const bgClass = type === 'success' ? 'bg-success text-white' : type === 'error' ? 'bg-danger text-white' : 'bg-info text-white';
+        const toastEl = document.createElement('div');
+        toastEl.className = 'toast align-items-center border-0';
+        toastEl.setAttribute('role', 'alert');
+        toastEl.setAttribute('aria-live', 'assertive');
+        toastEl.setAttribute('aria-atomic', 'true');
+        toastEl.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body ${bgClass}">
+                    ${message}
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
         `;
-        document.body.appendChild(toast);
-
-        // Tự động xóa sau 3 giây
-        setTimeout(() => {
-            if (toast.parentElement) {
-                toast.remove();
-            }
-        }, 3000);
+        container.appendChild(toastEl);
+        const bsToast = new bootstrap.Toast(toastEl, { delay: 3000 });
+        bsToast.show();
+        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
     }
 
     // Bộ lọc tìm kiếm file log

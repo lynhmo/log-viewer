@@ -1,6 +1,6 @@
 package com.example.demo;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -18,10 +18,10 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class LogMonitorController {
 
-    @Autowired
-    private DynamicLogManagerService logManagerService;
+    private final DynamicLogManagerService logManagerService;
 
     /**
      * Endpoint để kiểm tra trạng thái các tailer đang hoạt động
