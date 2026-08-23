@@ -74,6 +74,7 @@
         <appender-ref ref="FILE3"/>
     </root>
 
+    <logger name="com.example.demo" level="DEBUG" />
     <logger name="org.springframework" level="INFO"/>
     <logger name="org.hibernate" level="WARN"/>
 
